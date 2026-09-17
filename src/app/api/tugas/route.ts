@@ -9,7 +9,7 @@ const VALID_STATUSES = ["Belum Mulai", "Proses", "Selesai"];
 
 function safeUnlinkPhoto(photoUrl?: string | null) {
   if (!photoUrl || typeof photoUrl !== "string") return;
-  if (!photoUrl.startsWith("/uploads/dokumentasi/")) return;
+  if (!photoUrl.includes("/uploads/dokumentasi/")) return;
   try {
     const filename = path.basename(photoUrl);
     const diskPath = path.join(process.cwd(), "public", "uploads", "dokumentasi", filename);
