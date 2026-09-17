@@ -5,8 +5,15 @@ import path from "node:path";
 
 const rootDir = process.cwd();
 
+function getAppFile(relPath) {
+  const portalPath = relPath.replace(/^src\/app\/(keuangan|tugas|tamu|struktur|rundown|dashboard|pengguna)/, "src/app/(portal)/$1");
+  const fullPortal = path.join(rootDir, portalPath);
+  if (fs.existsSync(fullPortal)) return fullPortal;
+  return path.join(rootDir, relPath);
+}
+
 test("1. Keuangan Cards: Badges replaced with larger icon containers", () => {
-  const file = path.join(rootDir, "src/app/keuangan/page.tsx");
+  const file = getAppFile("src/app/keuangan/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // Verify text badges are removed from the cards
@@ -26,7 +33,7 @@ test("1. Keuangan Cards: Badges replaced with larger icon containers", () => {
 });
 
 test("2. Keuangan Filter: Expanded to full width with responsive grid", () => {
-  const file = path.join(rootDir, "src/app/keuangan/page.tsx");
+  const file = getAppFile("src/app/keuangan/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // Full-width grid container check
@@ -59,7 +66,7 @@ test("2. Keuangan Filter: Expanded to full width with responsive grid", () => {
 });
 
 test("3. Tugas Filter: Remains 2-item filter as-is", () => {
-  const file = path.join(rootDir, "src/app/tugas/page.tsx");
+  const file = getAppFile("src/app/tugas/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // Verify tugas filter has NOT been forced into 5 columns
@@ -98,7 +105,7 @@ test("4. App Tab Favicon & Icon: Panitia Maulid brand logo", () => {
 });
 
 test("5. Tugas Card: Redundant status badge removed and dropdown aligned to bottom right", () => {
-  const file = path.join(rootDir, "src/app/tugas/page.tsx");
+  const file = getAppFile("src/app/tugas/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // Verify redundant status badge next to dropdown is removed
@@ -118,7 +125,7 @@ test("5. Tugas Card: Redundant status badge removed and dropdown aligned to bott
 });
 
 test("6. Nominal Digit: Font matches standard sans-serif without font-mono", () => {
-  const file = path.join(rootDir, "src/app/keuangan/page.tsx");
+  const file = getAppFile("src/app/keuangan/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // Verify font-mono is removed from nominal table column
@@ -132,15 +139,15 @@ test("6. Nominal Digit: Font matches standard sans-serif without font-mono", () 
   );
 
   // Verify modals don't force font-mono on nominal inputs
-  const trxModal = fs.readFileSync(path.join(rootDir, "src/app/keuangan/components/TransaksiModal.tsx"), "utf-8");
+  const trxModal = fs.readFileSync(getAppFile("src/app/keuangan/components/TransaksiModal.tsx"), "utf-8");
   assert.ok(!trxModal.includes('className="font-mono"'), "TransaksiModal nominal input must not use font-mono");
 
-  const mutasiModal = fs.readFileSync(path.join(rootDir, "src/app/keuangan/components/MutasiModal.tsx"), "utf-8");
+  const mutasiModal = fs.readFileSync(getAppFile("src/app/keuangan/components/MutasiModal.tsx"), "utf-8");
   assert.ok(!mutasiModal.includes('className="font-mono"'), "MutasiModal nominal input must not use font-mono");
 });
 
 test("7. Progress Badges Tugas per Seksi: Responsive layout (1 on mobile, 3 full on desktop, flexible remainder)", () => {
-  const file = path.join(rootDir, "src/app/tugas/page.tsx");
+  const file = getAppFile("src/app/tugas/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // Old hardcoded 4-column and 2-column mobile grid must not be used
@@ -164,54 +171,60 @@ test("7. Progress Badges Tugas per Seksi: Responsive layout (1 on mobile, 3 full
 
 test("8. Badge Dropdowns: Colored according to status (excluding filters)", () => {
   // Tugas card status dropdown
-  const tugasFile = path.join(rootDir, "src/app/tugas/page.tsx");
+  const tugasFile = getAppFile("src/app/tugas/page.tsx");
   const tugasContent = fs.readFileSync(tugasFile, "utf-8");
 
+  const statusSelectFile = path.join(rootDir, "src/components/ui/StatusSelect.tsx");
+  const statusSelectContent = fs.existsSync(statusSelectFile) ? fs.readFileSync(statusSelectFile, "utf-8") : "";
+  const combinedTugas = tugasContent + "\n" + statusSelectContent;
+
   assert.ok(
-    tugasContent.includes('t.status === "Selesai"'),
+    combinedTugas.includes('val === "Selesai"') || combinedTugas.includes('t.status === "Selesai"'),
     "Tugas status dropdown must check for Selesai"
   );
   assert.ok(
-    tugasContent.includes('bg-emerald-50 text-emerald-700 border-emerald-300'),
+    combinedTugas.includes('bg-emerald-50 text-emerald-700 border-emerald-300'),
     "Selesai status dropdown must be colored emerald/green"
   );
   assert.ok(
-    tugasContent.includes('bg-amber-50 text-amber-700 border-amber-300'),
+    combinedTugas.includes('val === "Proses"') || combinedTugas.includes('t.status === "Proses"'),
+    "Tugas status dropdown must check for Proses"
+  );
+  assert.ok(
+    combinedTugas.includes('bg-amber-50 text-amber-700 border-amber-300'),
     "Proses status dropdown must be colored amber/yellow"
   );
   assert.ok(
-    tugasContent.includes('bg-slate-100 text-slate-700 border-slate-300'),
+    combinedTugas.includes('bg-slate-100 text-slate-700 border-slate-300'),
     "Belum Mulai status dropdown must be colored slate/gray"
   );
 
   // Filter dropdowns in tugas must remain standard without status badge colors
   assert.ok(
     tugasContent.includes('aria-label="Filter seksi tugas"'),
-    "Filter seksi must exist"
+    "Filter seksi must remain"
   );
   assert.ok(
     tugasContent.includes('aria-label="Filter status tugas"'),
-    "Filter status must exist"
+    "Filter status must remain"
   );
 
   // Tamu table attendance dropdown
-  const tamuFile = path.join(rootDir, "src/app/tamu/page.tsx");
+  const tamuFile = getAppFile("src/app/tamu/page.tsx");
   const tamuContent = fs.readFileSync(tamuFile, "utf-8");
+  const combinedTamu = tamuContent + "\n" + statusSelectContent;
 
   assert.ok(
-    tamuContent.includes('t.kehadiran === "Hadir"'),
+    combinedTamu.includes('val === "Hadir"') || combinedTamu.includes('t.kehadiran === "Hadir"'),
     "Tamu attendance dropdown must check for Hadir"
   );
   assert.ok(
-    tamuContent.includes('bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700'),
+    combinedTamu.includes('bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700'),
     "Hadir status dropdown must be colored emerald"
   );
   assert.ok(
-    tamuContent.includes('bg-rose-50 dark:bg-rose-950/50 text-rose-700'),
+    combinedTamu.includes('bg-rose-50 dark:bg-rose-950/50 text-rose-700'),
     "Tidak Hadir status dropdown must be colored rose/red"
   );
 });
-
-
-
 

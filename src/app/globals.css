@@ -55,29 +55,6 @@
   --font-serif: "Playfair Display", Georgia, Cambria, "Times New Roman", serif;
 }
 
-/* Islamic Architectural Arches & Specialized Geometry */
-.islamic-arch-frame {
-  border-top-left-radius: 9999px;
-  border-top-right-radius: 9999px;
-}
-
-.mosque-ogive-arch {
-  clip-path: polygon(
-    50% 0%, 
-    75% 12%, 
-    95% 30%, 
-    100% 50%, 
-    100% 100%, 
-    0% 100%, 
-    0% 50%, 
-    5% 30%, 
-    25% 12%
-  );
-}
-
-.scalloped-badge {
-  border-radius: var(--radius-scalloped);
-}
 
 :root {
   --background: var(--surface-ground);
@@ -139,16 +116,6 @@ body {
   }
 }
 
-@keyframes kineticSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 @keyframes kineticBackdrop {
   from {
@@ -159,11 +126,8 @@ body {
   }
 }
 
-/* Kinetic Animation Utility Classes */
-.animate-kinetic-fade {
-  animation: kineticFadeIn var(--motion-normal) var(--spring-natural) both;
-}
 
+/* Kinetic Animation Utility Classes */
 .animate-kinetic-scale {
   animation: kineticScaleIn var(--motion-fast) var(--spring-snappy) both;
 }
@@ -172,9 +136,6 @@ body {
   animation: kineticSlideDown var(--motion-fast) var(--spring-natural) both;
 }
 
-.animate-kinetic-slide-up {
-  animation: kineticSlideUp var(--motion-normal) var(--spring-smooth) both;
-}
 
 .animate-kinetic-backdrop {
   animation: kineticBackdrop var(--motion-fast) ease-out both;

@@ -47,3 +47,6 @@ public/uploads/*
 # codegraph
 .codegraph/
 
+# agents
+.agents/
+

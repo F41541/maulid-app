@@ -70,14 +70,14 @@ export function LocationContactSection() {
 
             {/* Map Simulation Card */}
             <div className="rounded-2xl overflow-hidden border border-white/20 shadow-md h-56 relative bg-slate-800">
-              <div className="absolute inset-0 bg-[#e5e3df] dark:bg-slate-800 flex flex-col items-center justify-center p-6 text-gray-700 dark:text-gray-200 text-center">
+              <div className="absolute inset-0 bg-[#e5e3df] dark:bg-slate-800 flex flex-col items-center justify-center p-6 text-slate-700 dark:text-slate-200 text-center">
                 <div className="w-12 h-12 rounded-full bg-brand-forest text-brand-accent flex items-center justify-center mb-3 shadow-md animate-bounce">
                   <MapPin className="w-6 h-6" />
                 </div>
                 <span className="font-bold text-sm text-brand-dark dark:text-white">
                   Mushola Nurul Hidayah
                 </span>
-                <span className="text-xs text-gray-600 dark:text-gray-300 mt-1 max-w-md leading-relaxed">
+                <span className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-md leading-relaxed">
                   Blok III Citoke Indah, Desa Sedonglor, Kecamatan Sedong, Kabupaten Cirebon
                 </span>
                 <a
@@ -122,10 +122,10 @@ export function LocationContactSection() {
             {submitted ? (
               <div className="bg-white/90 p-6 rounded-2xl text-center space-y-3">
                 <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
-                <h4 className="font-serif font-bold text-base text-gray-900">
+                <h4 className="font-serif font-bold text-base text-slate-900">
                   Jazakumullah Khairan Katsiran!
                 </h4>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-slate-600">
                   Pesan dan konfirmasi Anda telah tercatat dalam sistem kepanitiaan.
                 </p>
               </div>
@@ -141,7 +141,7 @@ export function LocationContactSection() {
                     placeholder="Contoh: H. Fathurrahman / Majelis An-Nur"
                     value={formData.nama}
                     onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-forest/20 bg-white text-xs sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-forest"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-forest/20 bg-white text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-forest"
                   />
                 </div>
 
@@ -155,7 +155,7 @@ export function LocationContactSection() {
                     placeholder="Contoh: 081234567890"
                     value={formData.noHp}
                     onChange={(e) => setFormData({ ...formData, noHp: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-forest/20 bg-white text-xs sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-forest"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-forest/20 bg-white text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-forest"
                   />
                 </div>
 
@@ -168,7 +168,7 @@ export function LocationContactSection() {
                     placeholder="Tuliskan pertanyaan mengenai rundown, lokasi parkir, atau konfirmasi rombongan..."
                     value={formData.pesan}
                     onChange={(e) => setFormData({ ...formData, pesan: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-forest/20 bg-white text-xs sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-forest"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-forest/20 bg-white text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-forest"
                   />
                 </div>
 

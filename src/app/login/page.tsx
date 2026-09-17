@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, User, AlertCircle, ArrowRight } from "lucide-react";
+import { Lock, AlertCircle, ArrowRight } from "lucide-react";
 import { setCachedUser } from "@/lib/role-utils";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { FormField } from "@/components/ui/FormField";
 
 export default function LoginPage() {

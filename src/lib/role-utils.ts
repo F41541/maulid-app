@@ -14,6 +14,29 @@ export interface CachedUserSession {
 
 const SESSION_CACHE_KEY = "maulid_user_session";
 
+export const ROLE_OPTIONS = [
+  { value: "ketua_panitia", label: "Ketua Panitia" },
+  { value: "wakil_ketua", label: "Wakil Ketua" },
+  { value: "sekretaris", label: "Sekretaris" },
+  { value: "bendahara", label: "Bendahara" },
+  { value: "koordinator_seksi", label: "Koordinator Seksi" },
+  { value: "pelindung", label: "Pelindung" },
+  { value: "penasihat", label: "Penasihat" },
+] as const;
+
+export const ROLE_LABELS: Record<string, string> = {
+  ketua_panitia: "Ketua Panitia",
+  wakil_ketua: "Wakil Ketua",
+  wakil_panitia: "Wakil Panitia",
+  wakil_ketua_panitia: "Wakil Ketua Panitia",
+  sekretaris: "Sekretaris",
+  bendahara: "Bendahara",
+  pelindung: "Pelindung",
+  penasihat: "Penasihat",
+  koordinator_seksi: "Koordinator Seksi",
+  admin: "Ketua Panitia",
+};
+
 export function isKetuaRole(role?: string | null, jabatan?: string | null): boolean {
   const normRole = (role || "").toLowerCase().replace(/[\s_-]+/g, "");
   if (
@@ -162,7 +185,7 @@ export function getNavRoutes(role?: string | null, jabatan?: string | null): str
     normJabatan.includes("pelindung") ||
     normJabatan.includes("penasihat")
   ) {
-    return ["/dashboard"];
+    return ["/dashboard", "/tugas"];
   }
 
   // Default / Anggota / Panitia Lain

@@ -6,7 +6,9 @@ import path from "node:path";
 const rootDir = process.cwd();
 
 test("1. Keuangan: Date range filter and 20-items pagination in table", () => {
-  const keuanganFile = path.join(rootDir, "src/app/keuangan/page.tsx");
+  const keuanganFile = fs.existsSync(path.join(rootDir, "src/app/(portal)/keuangan/page.tsx"))
+    ? path.join(rootDir, "src/app/(portal)/keuangan/page.tsx")
+    : path.join(rootDir, "src/app/keuangan/page.tsx");
   const content = fs.readFileSync(keuanganFile, "utf-8");
 
   // Filter input date range
@@ -19,9 +21,13 @@ test("1. Keuangan: Date range filter and 20-items pagination in table", () => {
   assert.ok(content.includes("paginatedTransactions"), "Must compute paginatedTransactions");
 
   // Pagination navigation controls
-  assert.ok(content.includes('aria-label="Halaman Sebelumnya"'), "Must have previous page button");
-  assert.ok(content.includes('aria-label="Halaman Selanjutnya"'), "Must have next page button");
-  assert.ok(content.includes("Array.from({ length: totalPages }"), "Must render full numbered page buttons");
+  const paginationFile = path.join(rootDir, "src/components/ui/Pagination.tsx");
+  const paginationContent = fs.existsSync(paginationFile) ? fs.readFileSync(paginationFile, "utf-8") : "";
+  const combinedContent = content + "\n" + paginationContent;
+
+  assert.ok(combinedContent.includes('aria-label="Halaman Sebelumnya"'), "Must have previous page button");
+  assert.ok(combinedContent.includes('aria-label="Halaman Selanjutnya"'), "Must have next page button");
+  assert.ok(combinedContent.includes("Array.from({ length: totalPages }"), "Must render full numbered page buttons");
 });
 
 test("2. Keuangan API: GET endpoint supports startDate and endDate query parameters", () => {
@@ -35,13 +41,23 @@ test("2. Keuangan API: GET endpoint supports startDate and endDate query paramet
 });
 
 test("3. Keuangan: Excel Export (.xlsx via xlsx) fetches from DB and replaces CSV", () => {
-  const keuanganFile = path.join(rootDir, "src/app/keuangan/page.tsx");
+  const keuanganFile = fs.existsSync(path.join(rootDir, "src/app/(portal)/keuangan/page.tsx"))
+    ? path.join(rootDir, "src/app/(portal)/keuangan/page.tsx")
+    : path.join(rootDir, "src/app/keuangan/page.tsx");
   const content = fs.readFileSync(keuanganFile, "utf-8");
 
   assert.ok(!content.includes("exportCSV"), "exportCSV must be eliminated");
   assert.ok(!content.includes("downloadCSV"), "downloadCSV must not be used");
   assert.ok(content.includes("exportExcel"), "exportExcel function must be present");
-  assert.ok(content.includes('XLSX.utils.book_append_sheet(wb, ws, "Laporan Kas")'), "Must create XLSX worksheet");
+
+  const exportHelperFile = path.join(rootDir, "src/lib/excel-export.ts");
+  const helperContent = fs.existsSync(exportHelperFile) ? fs.readFileSync(exportHelperFile, "utf-8") : "";
+  const combined = content + "\n" + helperContent;
+  assert.ok(
+    combined.includes('XLSX.utils.book_append_sheet(wb, ws, "Laporan Kas")') ||
+    (content.includes("exportToExcel") && helperContent.includes("XLSX.utils.book_append_sheet(wb, ws, sheetName)")),
+    "Must create XLSX worksheet"
+  );
   assert.ok(content.includes('label: "Ekspor Excel (.xlsx)"'), "SpeedDial must feature Ekspor Excel (.xlsx)");
 
   // Assert export-csv.ts does not exist
@@ -51,15 +67,18 @@ test("3. Keuangan: Excel Export (.xlsx via xlsx) fetches from DB and replaces CS
 
 test("4. Filter Bars: Total count indicators removed from all 5 pages", () => {
   const files = [
-    "src/app/keuangan/page.tsx",
-    "src/app/tamu/page.tsx",
-    "src/app/pengguna/page.tsx",
-    "src/app/tugas/page.tsx",
-    "src/app/struktur/page.tsx",
+    "src/app/(portal)/keuangan/page.tsx",
+    "src/app/(portal)/tamu/page.tsx",
+    "src/app/(portal)/pengguna/page.tsx",
+    "src/app/(portal)/tugas/page.tsx",
+    "src/app/(portal)/struktur/page.tsx",
   ];
 
   for (const relPath of files) {
-    const fullPath = path.join(rootDir, relPath);
+    const fallbackPath = relPath.replace("/(portal)", "");
+    const fullPath = fs.existsSync(path.join(rootDir, relPath))
+      ? path.join(rootDir, relPath)
+      : path.join(rootDir, fallbackPath);
     const content = fs.readFileSync(fullPath, "utf-8");
     assert.equal(
       /Total\s+\{[^}]+\}\s+(transaksi|tamu|pengguna|tugas|Anggota)/i.test(content),
@@ -70,7 +89,9 @@ test("4. Filter Bars: Total count indicators removed from all 5 pages", () => {
 });
 
 test("5. Tamu: Kategori and Kehadiran use dropdown select", () => {
-  const tamuFile = path.join(rootDir, "src/app/tamu/page.tsx");
+  const tamuFile = fs.existsSync(path.join(rootDir, "src/app/(portal)/tamu/page.tsx"))
+    ? path.join(rootDir, "src/app/(portal)/tamu/page.tsx")
+    : path.join(rootDir, "src/app/tamu/page.tsx");
   const content = fs.readFileSync(tamuFile, "utf-8");
 
   // Kategori filter dropdown

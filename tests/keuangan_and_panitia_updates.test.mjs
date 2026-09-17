@@ -6,7 +6,9 @@ import path from "node:path";
 const rootDir = process.cwd();
 
 test("1. Panitia Table: Akun Pengguna is placed immediately before Aksi", () => {
-  const file = path.join(rootDir, "src/app/struktur/page.tsx");
+  const file = fs.existsSync(path.join(rootDir, "src/app/(portal)/struktur/page.tsx"))
+    ? path.join(rootDir, "src/app/(portal)/struktur/page.tsx")
+    : path.join(rootDir, "src/app/struktur/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // In the thead: Kontak / No HP -> Catatan -> Akun Pengguna -> Aksi
@@ -85,7 +87,9 @@ test("2. Seeder & Auth: Ketua account is mfaisalfahri02@gmail.com with password 
 });
 
 test("3. Keuangan Cards: Total Saldo is full-width white card; Dompet & Rekening split into 2 columns", () => {
-  const file = path.join(rootDir, "src/app/keuangan/page.tsx");
+  const file = fs.existsSync(path.join(rootDir, "src/app/(portal)/keuangan/page.tsx"))
+    ? path.join(rootDir, "src/app/(portal)/keuangan/page.tsx")
+    : path.join(rootDir, "src/app/keuangan/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // Check that green gradient is removed from Total Semua Saldo
@@ -112,7 +116,9 @@ test("3. Keuangan Cards: Total Saldo is full-width white card; Dompet & Rekening
 });
 
 test("4. Keuangan: Aksi edit and related code eliminated", () => {
-  const pageFile = path.join(rootDir, "src/app/keuangan/page.tsx");
+  const pageFile = fs.existsSync(path.join(rootDir, "src/app/(portal)/keuangan/page.tsx"))
+    ? path.join(rootDir, "src/app/(portal)/keuangan/page.tsx")
+    : path.join(rootDir, "src/app/keuangan/page.tsx");
   const pageContent = fs.readFileSync(pageFile, "utf-8");
 
   assert.ok(!pageContent.includes("editingTransaksi"), "editingTransaksi state must be removed");
@@ -123,7 +129,9 @@ test("4. Keuangan: Aksi edit and related code eliminated", () => {
   const apiContent = fs.readFileSync(apiFile, "utf-8");
   assert.ok(!apiContent.includes('action === "update"'), 'action === "update" backend handler must be removed');
 
-  const modalFile = path.join(rootDir, "src/app/keuangan/components/TransaksiModal.tsx");
+  const modalFile = fs.existsSync(path.join(rootDir, "src/app/(portal)/keuangan/components/TransaksiModal.tsx"))
+    ? path.join(rootDir, "src/app/(portal)/keuangan/components/TransaksiModal.tsx")
+    : path.join(rootDir, "src/app/keuangan/components/TransaksiModal.tsx");
   const modalContent = fs.readFileSync(modalFile, "utf-8");
   assert.ok(!modalContent.includes("isEdit"), "isEdit prop must be removed from TransaksiModal");
 });

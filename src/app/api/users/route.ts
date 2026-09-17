@@ -26,9 +26,16 @@ export async function GET() {
       ORDER BY p.nama ASC
     `);
 
+    const panitiaList = await query(`
+      SELECT p.id, p.nama, p.jabatan, p.seksi_id, s.nama_seksi, p.user_id
+      FROM panitia p
+      LEFT JOIN seksi s ON p.seksi_id = s.id
+      ORDER BY p.nama ASC
+    `);
+
     const seksiList = await query("SELECT id, nama_seksi FROM seksi ORDER BY nama_seksi ASC");
 
-    return NextResponse.json({ users, panitiaTanpaAkun, seksiList });
+    return NextResponse.json({ users, panitiaTanpaAkun, panitiaList, seksiList });
   } catch (err: unknown) {
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -92,14 +99,25 @@ export async function POST(req: NextRequest) {
       const hashedPassword = hashPassword(password);
       const targetSeksiId = normalizedRole === ROLES.KOORDINATOR_SEKSI ? seksi_id || null : null;
 
+      let finalPanitiaId = panitia_id || null;
+      if (!finalPanitiaId) {
+        const matchPanitia = await queryOne<{ id: string; seksi_id?: string }>(
+          "SELECT id, seksi_id FROM panitia WHERE (user_id IS NULL OR user_id = '') AND (LOWER(nama) = LOWER(?) OR LOWER(jabatan) = LOWER(?)) LIMIT 1",
+          [nama, normalizedRole]
+        );
+        if (matchPanitia) {
+          finalPanitiaId = matchPanitia.id;
+        }
+      }
+
       await withTransaction(async (conn) => {
         await conn.execute(
           "INSERT INTO admin_users (id, username, password, nama, role, seksi_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
           [userId, username, hashedPassword, nama, normalizedRole, targetSeksiId, "aktif"]
         );
 
-        if (panitia_id) {
-          await conn.execute("UPDATE panitia SET user_id = ? WHERE id = ?", [userId, panitia_id]);
+        if (finalPanitiaId) {
+          await conn.execute("UPDATE panitia SET user_id = ? WHERE id = ?", [userId, finalPanitiaId]);
         }
       });
 
@@ -150,7 +168,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "update") {
-      const { id, username, nama, role, seksi_id, new_password } = body;
+      const { id, username, nama, role, seksi_id, panitia_id, new_password } = body;
       if (!id || !username || !nama || !role) {
         return NextResponse.json({ error: "Data pengguna tidak lengkap" }, { status: 400 });
       }
@@ -197,6 +215,11 @@ export async function POST(req: NextRequest) {
         if (result.affectedRows === 0) {
           return NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 404 });
         }
+      }
+
+      if (panitia_id) {
+        await execute("UPDATE panitia SET user_id = NULL WHERE user_id = ?", [id]);
+        await execute("UPDATE panitia SET user_id = ? WHERE id = ?", [id, panitia_id]);
       }
 
       return NextResponse.json({ success: true });

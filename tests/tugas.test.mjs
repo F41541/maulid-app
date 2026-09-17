@@ -43,8 +43,15 @@ test("1. Tugas: is_umum flag and multi-division scoping in MariaDB schema", asyn
   assert.ok(!divisionTasks.some((t) => t.id === "task-3"));
 });
 
+function getAppFile(relPath) {
+  const portalPath = relPath.replace(/^src\/app\/tugas/, "src/app/(portal)/tugas");
+  const fullPortal = path.join(rootDir, portalPath);
+  if (fs.existsSync(fullPortal)) return fullPortal;
+  return path.join(rootDir, relPath);
+}
+
 test("2. TugasModal: wider layout, single-row DateInput, Seluruh Divisi in dropdown, conditional PJ below seksi", () => {
-  const modalPath = path.join(rootDir, "src", "app", "tugas", "components", "TugasModal.tsx");
+  const modalPath = getAppFile("src/app/tugas/components/TugasModal.tsx");
   const content = fs.readFileSync(modalPath, "utf-8");
 
   // 1. Modal must have wider layout maxWidth="lg"
@@ -56,7 +63,7 @@ test("2. TugasModal: wider layout, single-row DateInput, Seluruh Divisi in dropd
   // 3. 'Seluruh Divisi' must be moved into the Seksi Pelaksana dropdown
   assert.match(
     content,
-    /<option\s+value=["']ALL["']>\s*🌐\s*Seluruh Divisi/i,
+    /<option\s+value=["']ALL["']>\s*Seluruh Divisi/i,
     "TugasModal must contain 'Seluruh Divisi' option inside the Seksi dropdown"
   );
 
@@ -85,7 +92,7 @@ test("2. TugasModal: wider layout, single-row DateInput, Seluruh Divisi in dropd
 });
 
 test("3. Tugas Card: Redundant status badge removed and dropdown aligned to bottom right", () => {
-  const file = path.join(rootDir, "src/app/tugas/page.tsx");
+  const file = getAppFile("src/app/tugas/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // Verify redundant status badge next to dropdown is removed
@@ -105,33 +112,37 @@ test("3. Tugas Card: Redundant status badge removed and dropdown aligned to bott
 });
 
 test("4. Tugas Card: Status dropdown colored dynamically by status", () => {
-  const file = path.join(rootDir, "src/app/tugas/page.tsx");
+  const file = getAppFile("src/app/tugas/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
+  const statusSelectFile = path.join(rootDir, "src/components/ui/StatusSelect.tsx");
+  const statusSelectContent = fs.existsSync(statusSelectFile) ? fs.readFileSync(statusSelectFile, "utf-8") : "";
+  const combined = content + "\n" + statusSelectContent;
+
   assert.ok(
-    content.includes('t.status === "Selesai"'),
+    combined.includes('val === "Selesai"') || combined.includes('t.status === "Selesai"'),
     "Tugas status dropdown must check for Selesai"
   );
   assert.ok(
-    content.includes("bg-emerald-50 text-emerald-700 border-emerald-300"),
+    combined.includes("bg-emerald-50 text-emerald-700 border-emerald-300"),
     "Selesai status dropdown must be colored emerald/green"
   );
   assert.ok(
-    content.includes('t.status === "Proses"'),
+    combined.includes('val === "Proses"') || combined.includes('t.status === "Proses"'),
     "Tugas status dropdown must check for Proses"
   );
   assert.ok(
-    content.includes("bg-amber-50 text-amber-700 border-amber-300"),
+    combined.includes("bg-amber-50 text-amber-700 border-amber-300"),
     "Proses status dropdown must be colored amber/yellow"
   );
   assert.ok(
-    content.includes("bg-slate-100 text-slate-700 border-slate-300"),
+    combined.includes("bg-slate-100 text-slate-700 border-slate-300"),
     "Belum Mulai status dropdown must be colored slate/gray"
   );
 });
 
 test("5. Progress Badges Tugas per Seksi: Responsive layout", () => {
-  const file = path.join(rootDir, "src/app/tugas/page.tsx");
+  const file = getAppFile("src/app/tugas/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   // Grid / flex layout
@@ -148,7 +159,7 @@ test("5. Progress Badges Tugas per Seksi: Responsive layout", () => {
 });
 
 test("6. Tugas Filter Bar: Remains compact 2-item filter", () => {
-  const file = path.join(rootDir, "src/app/tugas/page.tsx");
+  const file = getAppFile("src/app/tugas/page.tsx");
   const content = fs.readFileSync(file, "utf-8");
 
   assert.ok(

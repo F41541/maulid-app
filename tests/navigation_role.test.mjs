@@ -128,9 +128,9 @@ test("3. Navigation Menu items mapping according to role-based access", () => {
   const seksiItems = getNavRoutes("koordinator_seksi");
   assert.deepEqual(seksiItems, ["/dashboard", "/tugas"]);
 
-  // Pelindung & Penasihat get 1 module
+  // Pelindung & Penasihat get 2 modules
   const pelindungItems = getNavRoutes("pelindung");
-  assert.deepEqual(pelindungItems, ["/dashboard"]);
+  assert.deepEqual(pelindungItems, ["/dashboard", "/tugas"]);
 
   // Default / Unknown gets 2 modules
   const defaultItems = getNavRoutes();

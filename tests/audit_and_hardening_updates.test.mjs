@@ -117,11 +117,15 @@ test("7. Upload route verifies binary magic bytes and writes asynchronously", ()
 });
 
 test("8. Formula injection mitigation in Keuangan and Tamu Excel export", () => {
-  const keuanganPagePath = path.join(rootDir, "src", "app", "keuangan", "page.tsx");
+  const keuanganPagePath = fs.existsSync(path.join(rootDir, "src", "app", "(portal)", "keuangan", "page.tsx"))
+    ? path.join(rootDir, "src", "app", "(portal)", "keuangan", "page.tsx")
+    : path.join(rootDir, "src", "app", "keuangan", "page.tsx");
   const keuanganContent = fs.readFileSync(keuanganPagePath, "utf-8");
   assert.ok(keuanganContent.includes("sanitizeFormula"), "Keuangan page must define formula sanitizer");
 
-  const tamuPagePath = path.join(rootDir, "src", "app", "tamu", "page.tsx");
+  const tamuPagePath = fs.existsSync(path.join(rootDir, "src", "app", "(portal)", "tamu", "page.tsx"))
+    ? path.join(rootDir, "src", "app", "(portal)", "tamu", "page.tsx")
+    : path.join(rootDir, "src", "app", "tamu", "page.tsx");
   const tamuContent = fs.readFileSync(tamuPagePath, "utf-8");
   assert.ok(tamuContent.includes("sanitizeFormula"), "Tamu page must define formula sanitizer");
 });
@@ -141,7 +145,9 @@ test("10. Event date aligned to 11 Oktober 2026 across seeder and components", (
   assert.ok(dbContent.includes("2026-10-11"), "db.ts rundown seeder must specify 2026-10-11");
   assert.ok(dbContent.includes("2026-10-08"), "db.ts tugas seeder must align deadlines to October 2026");
 
-  const countdownPath = path.join(rootDir, "src", "app", "dashboard", "components", "CountdownAcaraCard.tsx");
+  const countdownPath = fs.existsSync(path.join(rootDir, "src", "app", "(portal)", "dashboard", "components", "CountdownAcaraCard.tsx"))
+    ? path.join(rootDir, "src", "app", "(portal)", "dashboard", "components", "CountdownAcaraCard.tsx")
+    : path.join(rootDir, "src", "app", "dashboard", "components", "CountdownAcaraCard.tsx");
   const countdownContent = fs.readFileSync(countdownPath, "utf-8");
   assert.ok(countdownContent.includes("2026, 9, 11"), "CountdownAcaraCard must default Hari H to 11 Oktober 2026");
 });
@@ -163,7 +169,9 @@ test("12. AUTH_SECRET distinguishes build phase from runtime fatal error", () =>
 });
 
 test("13. Rundown UI authorises Wakil Ketua in canEditRundown", () => {
-  const rundownPagePath = path.join(rootDir, "src", "app", "rundown", "page.tsx");
+  const rundownPagePath = fs.existsSync(path.join(rootDir, "src", "app", "(portal)", "rundown", "page.tsx"))
+    ? path.join(rootDir, "src", "app", "(portal)", "rundown", "page.tsx")
+    : path.join(rootDir, "src", "app", "rundown", "page.tsx");
   const content = fs.readFileSync(rundownPagePath, "utf-8");
 
   assert.ok(content.includes("isWakilRole"), "Rundown page must import and check isWakilRole");

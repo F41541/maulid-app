@@ -18,7 +18,7 @@ export function MainHeader() {
   ];
 
   return (
-    <header className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-50 border-b border-gray-100 dark:border-slate-800 transition-colors">
+    <header className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100 dark:border-slate-800 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
         {/* Logo Branding */}
         <Link href="/" className="flex items-center space-x-3 group">
@@ -32,14 +32,14 @@ export function MainHeader() {
             <span className="text-xl sm:text-2xl font-serif font-bold text-brand-dark dark:text-white tracking-tight block leading-tight">
               Maulid Nabi 1448 H
             </span>
-            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium tracking-wide uppercase block">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase block">
               Pusat Informasi Jamaah &amp; Panitia
             </span>
           </div>
         </Link>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center space-x-6 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+        <nav className="hidden lg:flex items-center space-x-6 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
           {navLinks.map((link) => (
             <a
               key={link.href}
@@ -56,7 +56,7 @@ export function MainHeader() {
           {/* Theme toggle on desktop (samping sebelum login portal) */}
           <ThemeToggle
             size="sm"
-            className="hidden sm:inline-flex p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition"
+            className="hidden sm:inline-flex p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition"
           />
 
           <Link
@@ -72,7 +72,7 @@ export function MainHeader() {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald"
+            className="lg:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald"
             aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu navigasi"}
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -82,8 +82,8 @@ export function MainHeader() {
 
       {/* Mobile Drawer / Sidebar */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-gray-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-4 space-y-3 animate-kinetic-slide-down shadow-xl">
-          <nav className="flex flex-col space-y-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+        <div className="lg:hidden border-t border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-4 space-y-3 animate-kinetic-slide-down shadow-xl">
+          <nav className="flex flex-col space-y-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
             {navLinks.map((link) => (
               <a
                 key={link.href}
@@ -98,8 +98,8 @@ export function MainHeader() {
           </nav>
 
           {/* Theme Switcher in Mobile Sidebar */}
-          <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between px-2 py-1">
-            <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between px-2 py-1">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
               Tema Gelap / Terang
             </span>
             <ThemeToggle size="sm" />

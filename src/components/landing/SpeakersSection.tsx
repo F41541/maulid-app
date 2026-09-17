@@ -76,7 +76,7 @@ export function SpeakersSection() {
       }`}
     >
       {/* Arch Top Image Container */}
-      <div className="w-full aspect-[3/4] rounded-t-full rounded-b-2xl overflow-hidden bg-gray-100 dark:bg-slate-800 mb-4 relative shadow-inner">
+      <div className="w-full aspect-[3/4] rounded-t-full rounded-b-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 mb-4 relative shadow-inner">
         <img
           alt={speaker.name}
           className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-500"
@@ -96,11 +96,11 @@ export function SpeakersSection() {
         {speaker.name}
       </h3>
 
-      <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed flex-grow">
+      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed flex-grow">
         {speaker.desc}
       </p>
 
-      <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-800 w-full flex items-center justify-center">
+      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 w-full flex items-center justify-center">
         <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
           Insya Allah Hadir Membimbing
         </span>
@@ -119,7 +119,7 @@ export function SpeakersSection() {
           <h2 className="text-3xl sm:text-4xl font-serif text-brand-dark dark:text-white">
             Penceramah &amp; Asatidz
           </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
             Menimba samudera hikmah dan keteladanan akhlak Baginda Rasulullah SAW bersama para guru kita.
           </p>
         </div>
@@ -153,7 +153,7 @@ export function SpeakersSection() {
                   className={`h-2 rounded-full transition-all duration-300 ${
                     activeIndex === i
                       ? "w-7 bg-brand-forest dark:bg-brand-accent shadow-xs"
-                      : "w-2 bg-gray-300 dark:bg-slate-700 hover:bg-gray-400"
+                      : "w-2 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400"
                   }`}
                   aria-label={`Slide ke ${i + 1}`}
                 />
@@ -166,7 +166,8 @@ export function SpeakersSection() {
                 type="button"
                 onClick={() => scrollToCard(Math.max(0, activeIndex - 1))}
                 disabled={activeIndex === 0}
-                className="w-9 h-9 rounded-full border border-gray-200 dark:border-slate-700 flex items-center justify-center text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-800 shadow-xs disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-forest hover:text-white dark:hover:bg-brand-accent dark:hover:text-brand-dark transition active:scale-95"
+                suppressHydrationWarning
+                className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 shadow-xs disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-forest hover:text-white dark:hover:bg-brand-accent dark:hover:text-brand-dark transition active:scale-95"
                 aria-label="Penceramah sebelumnya"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -175,14 +176,15 @@ export function SpeakersSection() {
                 type="button"
                 onClick={() => scrollToCard(Math.min(speakers.length - 1, activeIndex + 1))}
                 disabled={activeIndex === speakers.length - 1}
-                className="w-9 h-9 rounded-full border border-gray-200 dark:border-slate-700 flex items-center justify-center text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-800 shadow-xs disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-forest hover:text-white dark:hover:bg-brand-accent dark:hover:text-brand-dark transition active:scale-95"
+                suppressHydrationWarning
+                className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 shadow-xs disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-forest hover:text-white dark:hover:bg-brand-accent dark:hover:text-brand-dark transition active:scale-95"
                 aria-label="Penceramah selanjutnya"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
-          <p className="text-center mt-2.5 text-[11px] text-gray-500 dark:text-gray-400">
+          <p className="text-center mt-2.5 text-[11px] text-slate-500 dark:text-slate-400">
             Geser untuk melihat profil asatidz lainnya &rarr;
           </p>
         </div>

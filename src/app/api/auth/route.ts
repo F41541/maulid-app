@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne, execute } from "@/lib/db";
 import { createSession, destroySession, getSession, verifyPassword, hashPassword } from "@/lib/auth";
-
-const failedAttempts = new Map<string, { count: number; lockUntil: number }>();
+import { getFailedLogin, recordFailedLogin, resetFailedLogin } from "@/lib/redis";
 
 export async function GET() {
   try {
@@ -36,7 +35,7 @@ export async function POST(req: NextRequest) {
       const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0] || "localhost";
       const rateLimitKey = `${clientIp}:${username}`;
       const now = Date.now();
-      const attempt = failedAttempts.get(rateLimitKey);
+      const attempt = await getFailedLogin(rateLimitKey);
 
       if (attempt && attempt.lockUntil > now) {
         const remainingMinutes = Math.ceil((attempt.lockUntil - now) / 60000);
@@ -53,6 +52,7 @@ export async function POST(req: NextRequest) {
         nama: string;
         role: string;
         seksi_id?: string | null;
+        nama_seksi?: string | null;
         status?: string;
         jabatan?: string | null;
       } | null = null;
@@ -65,12 +65,14 @@ export async function POST(req: NextRequest) {
           nama: string;
           role: string;
           seksi_id?: string | null;
+          nama_seksi?: string | null;
           status?: string;
           jabatan?: string | null;
         }>(
-          `SELECT u.id, u.username, u.password, u.nama, u.role, u.seksi_id, u.status, p.jabatan as jabatan
+          `SELECT u.id, u.username, u.password, u.nama, u.role, COALESCE(u.seksi_id, p.seksi_id) as seksi_id, u.status, p.jabatan as jabatan, s.nama_seksi as nama_seksi
            FROM admin_users u
            LEFT JOIN panitia p ON p.user_id = u.id
+           LEFT JOIN seksi s ON (u.seksi_id = s.id OR (u.seksi_id IS NULL AND p.seksi_id = s.id))
            WHERE u.username = ?`,
           [username]
         );
@@ -90,13 +92,13 @@ export async function POST(req: NextRequest) {
       if (!user || user.status === "nonaktif" || !verifyPassword(password, user.password)) {
         const count = (attempt?.count || 0) + 1;
         const lockUntil = count >= 10 ? now + 5 * 60 * 1000 : 0;
-        failedAttempts.set(rateLimitKey, { count, lockUntil });
+        await recordFailedLogin(rateLimitKey, count, lockUntil);
 
         return NextResponse.json({ error: "Username atau password salah" }, { status: 401 });
       }
 
       // Reset failed attempts on success
-      failedAttempts.delete(rateLimitKey);
+      await resetFailedLogin(rateLimitKey);
 
       // Auto-upgrade plaintext password to salted hash if needed
       if (!user.password.includes(":")) {
@@ -114,6 +116,7 @@ export async function POST(req: NextRequest) {
         nama: user.nama,
         role: normalizedRole,
         seksi_id: user.seksi_id || null,
+        nama_seksi: user.nama_seksi || null,
         jabatan: user.jabatan || null,
       });
 
@@ -125,6 +128,7 @@ export async function POST(req: NextRequest) {
           nama: user.nama,
           role: normalizedRole,
           seksi_id: user.seksi_id || null,
+          nama_seksi: user.nama_seksi || null,
           jabatan: user.jabatan || null,
         },
       });

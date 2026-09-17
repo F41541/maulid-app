@@ -5,9 +5,16 @@ import path from "node:path";
 
 const rootDir = path.resolve(import.meta.dirname, "..");
 
+function getAppFile(relPath) {
+  const portalPath = relPath.replace(/^src\/app\/(dashboard|struktur|keuangan|rundown|tugas|tamu|pengguna)/, "src/app/(portal)/$1");
+  const fullPortal = path.join(rootDir, portalPath);
+  if (fs.existsSync(fullPortal)) return fullPortal;
+  return path.join(rootDir, relPath);
+}
+
 test("1. Dashboard - Hapus Tugas Mendesak & Berjalan dan Pratinjau Susunan Acara", () => {
   const dashboardContent = fs.readFileSync(
-    path.join(rootDir, "src/app/dashboard/page.tsx"),
+    getAppFile("src/app/dashboard/page.tsx"),
     "utf-8"
   );
   assert.equal(
@@ -24,7 +31,7 @@ test("1. Dashboard - Hapus Tugas Mendesak & Berjalan dan Pratinjau Susunan Acara
 
 test("2. Dashboard - Urutan StatCard: Anggota, Total Saldo, Kesiapan Tugas, Tamu Undangan", () => {
   const dashboardContent = fs.readFileSync(
-    path.join(rootDir, "src/app/dashboard/page.tsx"),
+    getAppFile("src/app/dashboard/page.tsx"),
     "utf-8"
   );
 
@@ -63,7 +70,7 @@ test("3. Hapus PageHeader title & description di seluruh halaman portal", () => 
   ];
 
   for (const file of portalPages) {
-    const content = fs.readFileSync(path.join(rootDir, file), "utf-8");
+    const content = fs.readFileSync(getAppFile(file), "utf-8");
     assert.equal(
       content.includes("<PageHeader"),
       false,
@@ -74,7 +81,7 @@ test("3. Hapus PageHeader title & description di seluruh halaman portal", () => 
 
 test("4. Struktur - Switch modern untuk Bagan Visual / Tabel & SpeedDialActions", () => {
   const strukturContent = fs.readFileSync(
-    path.join(rootDir, "src/app/struktur/page.tsx"),
+    getAppFile("src/app/struktur/page.tsx"),
     "utf-8"
   );
 
@@ -115,7 +122,7 @@ test("5. SpeedDialActions terpasang di seluruh halaman yang memiliki aksi", () =
   ];
 
   for (const file of actionPages) {
-    const content = fs.readFileSync(path.join(rootDir, file), "utf-8");
+    const content = fs.readFileSync(getAppFile(file), "utf-8");
     assert.ok(
       content.includes("<SpeedDialActions"),
       `File ${file} must include <SpeedDialActions`
@@ -143,7 +150,7 @@ test("6. Responsiveness mobile - pembatasan overflow horizontal", () => {
   );
 
   const tamuContent = fs.readFileSync(
-    path.join(rootDir, "src/app/tamu/page.tsx"),
+    getAppFile("src/app/tamu/page.tsx"),
     "utf-8"
   );
   assert.equal(

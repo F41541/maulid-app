@@ -6,6 +6,7 @@ export interface SessionUser {
   nama: string;
   role: string;
   seksi_id?: string | null;
+  nama_seksi?: string | null;
   status?: string;
   jabatan?: string | null;
 }

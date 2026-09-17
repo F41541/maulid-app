@@ -85,7 +85,7 @@ export function SpeedDialActions({
       <div
         ref={containerRef}
         className={cn(
-          "fixed right-4 sm:right-6 bottom-20 md:bottom-6 z-40 no-print flex flex-col items-end",
+          "fixed right-4 sm:right-6 bottom-20 z-50 no-print flex flex-col items-end",
           className
         )}
       >

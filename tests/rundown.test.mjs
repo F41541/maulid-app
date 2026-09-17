@@ -30,7 +30,9 @@ test("1. Rundown schema and migration supports 'hari' field with default value",
 });
 
 test("2. Rundown UI: Vertical timeline connector connects sequence numbers without touching", () => {
-  const rundownPagePath = path.join(rootDir, "src", "app", "rundown", "page.tsx");
+  const rundownPagePath = fs.existsSync(path.join(rootDir, "src", "app", "(portal)", "rundown", "page.tsx"))
+    ? path.join(rootDir, "src", "app", "(portal)", "rundown", "page.tsx")
+    : path.join(rootDir, "src", "app", "rundown", "page.tsx");
   const content = fs.readFileSync(rundownPagePath, "utf-8");
 
   // Row container has relative positioning
@@ -54,7 +56,9 @@ test("2. Rundown UI: Vertical timeline connector connects sequence numbers witho
 });
 
 test("3. RundownModal: Integrates DateInput for 'hari' and TimeColonInput for 'waktu'", () => {
-  const modalPath = path.join(rootDir, "src", "app", "rundown", "components", "RundownModal.tsx");
+  const modalPath = fs.existsSync(path.join(rootDir, "src", "app", "(portal)", "rundown", "components", "RundownModal.tsx"))
+    ? path.join(rootDir, "src", "app", "(portal)", "rundown", "components", "RundownModal.tsx")
+    : path.join(rootDir, "src", "app", "rundown", "components", "RundownModal.tsx");
   const content = fs.readFileSync(modalPath, "utf-8");
 
   // DateInput import & usage

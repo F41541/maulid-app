@@ -24,6 +24,7 @@ import {
   getCachedUser,
   setCachedUser,
   clearCachedUser,
+  ROLE_LABELS,
 } from "@/lib/role-utils";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
@@ -33,6 +34,7 @@ interface UserSessionState {
   nama: string;
   role: string;
   seksi_id?: string | null;
+  nama_seksi?: string | null;
   jabatan?: string | null;
 }
 
@@ -42,19 +44,6 @@ export interface NavbarProps {
   userJabatan?: string | null;
   children?: React.ReactNode;
 }
-
-const ROLE_LABELS: Record<string, string> = {
-  ketua_panitia: "Ketua Panitia",
-  wakil_ketua: "Wakil Ketua",
-  wakil_panitia: "Wakil Panitia",
-  wakil_ketua_panitia: "Wakil Ketua Panitia",
-  sekretaris: "Sekretaris",
-  bendahara: "Bendahara",
-  pelindung: "Pelindung",
-  penasihat: "Penasihat",
-  koordinator_seksi: "Koordinator Seksi",
-  admin: "Ketua Panitia",
-};
 
 const ALL_NAV_CONFIG: Record<
   string,
@@ -224,7 +213,7 @@ export default function Navbar({
     return pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/"));
   };
 
-  const renderedRoleLabel =
+  const baseRoleLabel =
     effectiveJabatan ||
     ROLE_LABELS[effectiveRole] ||
     (showSidebar
@@ -234,6 +223,27 @@ export default function Navbar({
       : effectiveRole
       ? "Pengurus"
       : "");
+
+  let divisiTambahan = currentUser?.nama_seksi || "";
+  const normRole = (effectiveRole || "").toLowerCase();
+  const normJab = (effectiveJabatan || "").toLowerCase();
+
+  if (!divisiTambahan) {
+    if (normRole === "pelindung" || normJab.includes("pelindung")) {
+      divisiTambahan = "Dewan Pelindung";
+    } else if (normRole === "penasihat" || normJab.includes("penasihat")) {
+      divisiTambahan = "Dewan Penasihat";
+    } else if (normRole === "sekretaris" || normJab.includes("sekretaris")) {
+      divisiTambahan = "Sekretariat";
+    } else if (normRole === "bendahara" || normJab.includes("bendahara")) {
+      divisiTambahan = "Keuangan";
+    }
+  }
+
+  const renderedRoleLabel =
+    divisiTambahan && !baseRoleLabel.toLowerCase().includes(divisiTambahan.toLowerCase())
+      ? `${baseRoleLabel} — ${divisiTambahan}`
+      : baseRoleLabel;
 
   // MODE 1: SIDEBAR NAVIGATION (Ketua & Wakil Panitia)
   if (showSidebar) {

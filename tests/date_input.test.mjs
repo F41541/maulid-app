@@ -52,14 +52,17 @@ test("2. DateInput Component File Integrity and Structure", () => {
 
 test("3. All Modals Use DateInput Instead of Native Input type=date", () => {
   const filesToCheck = [
-    "src/app/keuangan/components/TransaksiModal.tsx",
-    "src/app/keuangan/components/MutasiModal.tsx",
-    "src/app/rundown/components/RundownModal.tsx",
-    "src/app/tugas/components/TugasModal.tsx",
+    "src/app/(portal)/keuangan/components/TransaksiModal.tsx",
+    "src/app/(portal)/keuangan/components/MutasiModal.tsx",
+    "src/app/(portal)/rundown/components/RundownModal.tsx",
+    "src/app/(portal)/tugas/components/TugasModal.tsx",
   ];
 
   for (const relPath of filesToCheck) {
-    const fullPath = path.resolve(process.cwd(), relPath);
+    const fallbackPath = relPath.replace("/(portal)", "");
+    const fullPath = fs.existsSync(path.resolve(process.cwd(), relPath))
+      ? path.resolve(process.cwd(), relPath)
+      : path.resolve(process.cwd(), fallbackPath);
     assert.ok(fs.existsSync(fullPath), `${relPath} must exist`);
     const content = fs.readFileSync(fullPath, "utf-8");
 
@@ -108,10 +111,10 @@ test("4. DateInput and TimeColonInput Boxed Segment & Cursor-Free Styling", () =
     "TimeColonInput must auto-select block when focused or clicked"
   );
 
-  const rundownModalContent = fs.readFileSync(
-    path.resolve(process.cwd(), "src/app/rundown/components/RundownModal.tsx"),
-    "utf-8"
-  );
+  const rundownModalPath = fs.existsSync(path.resolve(process.cwd(), "src/app/(portal)/rundown/components/RundownModal.tsx"))
+    ? path.resolve(process.cwd(), "src/app/(portal)/rundown/components/RundownModal.tsx")
+    : path.resolve(process.cwd(), "src/app/rundown/components/RundownModal.tsx");
+  const rundownModalContent = fs.readFileSync(rundownModalPath, "utf-8");
   assert.ok(
     rundownModalContent.includes("Jadwal Pelaksanaan"),
     "RundownModal must contain dedicated Jadwal Pelaksanaan panel"
@@ -170,10 +173,10 @@ test("6. Synchronous Ref Tracking & Blur Protection prevents 11 turning into 01 
   );
 
   // Rundown openEdit legacy date sanitization
-  const rundownPage = fs.readFileSync(
-    path.resolve(process.cwd(), "src/app/rundown/page.tsx"),
-    "utf-8"
-  );
+  const rundownPagePath = fs.existsSync(path.resolve(process.cwd(), "src/app/(portal)/rundown/page.tsx"))
+    ? path.resolve(process.cwd(), "src/app/(portal)/rundown/page.tsx")
+    : path.resolve(process.cwd(), "src/app/rundown/page.tsx");
+  const rundownPage = fs.readFileSync(rundownPagePath, "utf-8");
   assert.match(
     rundownPage,
     /hari:\s*\/.*\\d\{4\}-\\d\{2\}-\\d\{2\}.*\/\.test\(item\.hari/,

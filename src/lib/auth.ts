@@ -20,9 +20,10 @@ export async function getSession(): Promise<SessionUser | null> {
     let user: SessionUser | null = null;
     try {
       user = await queryOne<SessionUser>(
-        `SELECT u.id, u.username, u.nama, u.role, u.seksi_id, u.status, p.jabatan as jabatan
+        `SELECT u.id, u.username, u.nama, u.role, COALESCE(u.seksi_id, p.seksi_id) as seksi_id, u.status, p.jabatan as jabatan, s.nama_seksi as nama_seksi
          FROM admin_users u
          LEFT JOIN panitia p ON p.user_id = u.id
+         LEFT JOIN seksi s ON (u.seksi_id = s.id OR (u.seksi_id IS NULL AND p.seksi_id = s.id))
          WHERE u.id = ? AND u.username = ? AND (u.status = 'aktif' OR u.status IS NULL)`,
         [verified.userId, verified.username]
       );

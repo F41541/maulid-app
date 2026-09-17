@@ -52,7 +52,7 @@ export function StatsBar() {
                   <span className="text-xs font-semibold text-brand-forest dark:text-brand-accent block mt-0.5">
                     {stat.title}
                   </span>
-                  <span className="text-[11px] text-gray-500 dark:text-gray-400 block mt-0.5">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
                     {stat.desc}
                   </span>
                 </div>

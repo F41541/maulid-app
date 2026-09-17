@@ -44,7 +44,7 @@ export function RundownSection({ rundownList }: RundownSectionProps) {
         <h2 className="text-3xl sm:text-4xl font-serif text-brand-dark dark:text-white">
           Rundown &amp; Agenda Acara
         </h2>
-        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2">
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2">
           Rangkaian mata acara Peringatan Maulid Nabi Muhammad SAW 1448 H disusun secara tertib untuk kenyamanan jamaah.
         </p>
 
@@ -56,7 +56,7 @@ export function RundownSection({ rundownList }: RundownSectionProps) {
             className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${
               filter === "all"
                 ? "bg-brand-forest text-white shadow-xs"
-                : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
             }`}
           >
             Semua Rangkaian ({rundownList.length})
@@ -67,7 +67,7 @@ export function RundownSection({ rundownList }: RundownSectionProps) {
             className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${
               filter === "pembuka"
                 ? "bg-brand-forest text-white shadow-xs"
-                : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
             }`}
           >
             Pembukaan &amp; Sambutan
@@ -78,7 +78,7 @@ export function RundownSection({ rundownList }: RundownSectionProps) {
             className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${
               filter === "inti"
                 ? "bg-brand-forest text-white shadow-xs"
-                : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
             }`}
           >
             Sholawat &amp; Tausiyah Inti
@@ -89,7 +89,7 @@ export function RundownSection({ rundownList }: RundownSectionProps) {
             className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${
               filter === "penutup"
                 ? "bg-brand-forest text-white shadow-xs"
-                : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
             }`}
           >
             Doa &amp; Ramah Tamah
@@ -101,11 +101,11 @@ export function RundownSection({ rundownList }: RundownSectionProps) {
       <div className="max-w-4xl mx-auto space-y-4">
         {filteredItems.length === 0 ? (
           <div className="bg-brand-cardBg dark:bg-slate-900 border border-brand-borderLight dark:border-slate-800 rounded-2xl p-8 text-center">
-            <Clock className="w-10 h-10 text-gray-400 mx-auto mb-3 opacity-60" />
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <Clock className="w-10 h-10 text-slate-400 mx-auto mb-3 opacity-60" />
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
               Belum ada susunan acara untuk kategori ini.
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Data mata acara akan diperbarui secara langsung oleh Panitia Seksi Acara.
             </p>
           </div>
@@ -122,7 +122,7 @@ export function RundownSection({ rundownList }: RundownSectionProps) {
                 className={`rounded-2xl p-5 sm:p-6 transition-all duration-200 border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                   isHighlight
                     ? "bg-[#f8fbe9] dark:bg-emerald-950/40 border-brand-accent shadow-xs"
-                    : "bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 hover:border-brand-emerald/40 shadow-xs"
+                    : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-brand-emerald/40 shadow-xs"
                 }`}
               >
                 {/* Time & Activity */}
@@ -153,7 +153,7 @@ export function RundownSection({ rundownList }: RundownSectionProps) {
                       {item.nama_kegiatan}
                     </h3>
                     {item.catatan && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         {item.catatan}
                       </p>
                     )}
@@ -162,8 +162,8 @@ export function RundownSection({ rundownList }: RundownSectionProps) {
 
                 {/* Speaker / Pengisi */}
                 {item.nama_pengisi && (
-                  <div className="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-gray-100 dark:border-slate-800 shrink-0">
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 block uppercase tracking-wider">
+                  <div className="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 dark:border-slate-800 shrink-0">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase tracking-wider">
                       Pengisi Acara / Penceramah
                     </span>
                     <div className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-forest dark:text-brand-accent mt-0.5">

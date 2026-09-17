@@ -82,7 +82,7 @@ export function AboutSection() {
               Meneladani Akhlakul Karimah
             </h2>
 
-            <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed">
+            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
               Majelis peringatan maulid ini dirancang sebagai ruang temu spiritual bagi jamaah dari berbagai kalangan. Bersama para Asatidz, Habaib, dan Qari, kita melantunkan bait-bait pujian, menyerap mutiara nasehat, serta memperkokoh persaudaraan umat Islam.
             </p>
 
@@ -94,7 +94,7 @@ export function AboutSection() {
                 className={`px-4 py-2 rounded-full text-xs font-bold transition ${
                   activeTab === "tujuan"
                     ? "bg-brand-accent text-brand-dark shadow-xs"
-                    : "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 Tujuan Mulia
@@ -106,7 +106,7 @@ export function AboutSection() {
                 className={`px-4 py-2 rounded-full text-xs font-bold transition ${
                   activeTab === "keutamaan"
                     ? "bg-brand-accent text-brand-dark shadow-xs"
-                    : "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 Keutamaan Sholawat
@@ -118,7 +118,7 @@ export function AboutSection() {
                 className={`px-4 py-2 rounded-full text-xs font-bold transition ${
                   activeTab === "tataTertib"
                     ? "bg-brand-accent text-brand-dark shadow-xs"
-                    : "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 Tata Tertib Jamaah
@@ -130,12 +130,12 @@ export function AboutSection() {
               <h3 className="text-sm font-bold text-brand-forest dark:text-brand-accent">
                 {currentTab.title}
               </h3>
-              <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                 {currentTab.description}
               </p>
               <ul className="space-y-1.5 pt-1">
                 {currentTab.points.map((point, pIdx) => (
-                  <li key={pIdx} className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200 font-medium">
+                  <li key={pIdx} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200 font-medium">
                     <CheckCircle2 className="w-3.5 h-3.5 text-brand-emerald dark:text-brand-accent shrink-0" />
                     <span>{point}</span>
                   </li>

@@ -3,11 +3,14 @@ import { cn } from "@/lib/utils";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: boolean;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
+  wrapperClassName?: string;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, error, ...props }, ref) => {
-    return (
+  ({ className, error, leftIcon, rightIcon, wrapperClassName, ...props }, ref) => {
+    const inputElement = (
       <input
         ref={ref}
         className={cn(
@@ -18,10 +21,32 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             ? "border-rose-300 dark:border-rose-700 focus:ring-rose-500 text-rose-900 dark:text-rose-200"
             : "border-slate-300 dark:border-slate-700 focus:ring-emerald-500 focus:border-emerald-500",
           "disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed",
+          leftIcon && "pl-10",
+          rightIcon && "pr-10",
           className
         )}
         {...props}
       />
+    );
+
+    if (!leftIcon && !rightIcon) {
+      return inputElement;
+    }
+
+    return (
+      <div className={cn("relative w-full flex items-center", wrapperClassName)}>
+        {leftIcon && (
+          <div className="absolute left-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+            {leftIcon}
+          </div>
+        )}
+        {inputElement}
+        {rightIcon && (
+          <div className="absolute right-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+            {rightIcon}
+          </div>
+        )}
+      </div>
     );
   }
 );
