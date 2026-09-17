@@ -285,7 +285,7 @@ export default function Navbar({
                   href={item.href}
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out active:scale-[0.98] ${
                     active
-                      ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border-l-4 border-emerald-600 shadow-2xs"
+                      ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold shadow-2xs"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
                   }`}
                   aria-current={active ? "page" : undefined}
@@ -333,7 +333,7 @@ export default function Navbar({
         {/* Mobile Drawer (Backdrop + Slide-over Panel) */}
         {mobileOpen && (
           <div
-            className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs transition-opacity md:hidden animate-kinetic-backdrop"
+            className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs transition-opacity md:hidden animate-kinetic-backdrop no-print print:hidden"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
@@ -343,7 +343,7 @@ export default function Navbar({
           role="dialog"
           aria-modal="true"
           aria-label="Menu Navigasi Mobile"
-          className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-slate-900 shadow-2xl flex flex-col transition-transform duration-200 ease-[var(--spring-natural)] md:hidden border-r border-slate-200 dark:border-slate-800 ${
+          className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-slate-900 shadow-2xl flex flex-col transition-transform duration-200 ease-[var(--spring-natural)] md:hidden border-r border-slate-200 dark:border-slate-800 no-print print:hidden ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -383,7 +383,7 @@ export default function Navbar({
                   onClick={() => setMobileOpen(false)}
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out active:scale-[0.98] ${
                     active
-                      ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border-l-4 border-emerald-600 shadow-2xs"
+                      ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold shadow-2xs"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
                   }`}
                   aria-current={active ? "page" : undefined}
@@ -426,7 +426,7 @@ export default function Navbar({
 
         {/* Content Area with Desktop Sidebar Left Margin */}
         {children ? (
-          <div className="md:pl-64 flex-1 flex flex-col min-w-0 w-full max-w-full overflow-x-hidden print:pl-0">
+          <div className="md:pl-64 flex-1 flex flex-col min-w-0 w-full max-w-full overflow-x-clip print:pl-0">
             {/* Top Header untuk Ketua & Wakil Ketua (seluruh halaman) */}
             <header className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between no-print transition-colors">
               <div className="flex items-center gap-3">
@@ -447,7 +447,9 @@ export default function Navbar({
               </div>
             </header>
 
-            {children}
+            <main className="flex-1 min-w-0 w-full overflow-x-hidden">
+              {children}
+            </main>
           </div>
         ) : null}
       </div>

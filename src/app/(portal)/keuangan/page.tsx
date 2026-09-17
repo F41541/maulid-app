@@ -693,13 +693,13 @@ export default function KeuanganPage() {
               onClick: () => setModalMutasiOpen(true),
             },
             {
-              label: "+ Kas Masuk",
+              label: "Kas Masuk",
               icon: Plus,
               variant: "primary",
               onClick: () => openAdd("masuk"),
             },
             {
-              label: "+ Kas Keluar",
+              label: "Kas Keluar",
               icon: Plus,
               variant: "danger",
               onClick: () => openAdd("keluar"),

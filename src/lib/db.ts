@@ -238,20 +238,10 @@ export async function initSchema(customPool?: Pool): Promise<void> {
 export async function seedInitialData(customPool?: Pool): Promise<void> {
   const pool: Pool = customPool || getPool();
 
-  // 1. Seed admin users
-  const [adminUsers] = (await pool.query(
-    "SELECT id FROM admin_users WHERE username = ?",
-    ["admin"]
-  )) as [RowDataPacket[], unknown];
-
-  if (adminUsers.length === 0) {
-    await pool.execute(
-      "INSERT INTO admin_users (id, username, password, nama, role) VALUES (?, ?, ?, ?, ?)",
-      ["admin-1", "admin", hashPassword("admin123"), "Sekretariat Panitia", "ketua_panitia"]
-    );
-  } else {
-    await pool.execute("UPDATE admin_users SET role = 'ketua_panitia' WHERE role = 'admin'");
-  }
+  // 1. Clean up legacy admin seeder (Sekretariat Panitia) if present
+  await pool.execute(
+    "DELETE FROM admin_users WHERE username = 'admin' AND (nama = 'Sekretariat Panitia' OR id = 'admin-1')"
+  ).catch(() => {});
 
   // Idempotent migration for old legacy placeholder without overwriting user password
   await pool.execute(

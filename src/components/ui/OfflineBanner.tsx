@@ -50,7 +50,7 @@ export function OfflineBanner() {
       {!isOnline ? (
         <>
           <WifiOff className="w-4 h-4 shrink-0 animate-pulse" />
-          <span>Koneksi terputus. Bekerja dalam mode offline.</span>
+          <span>Koneksi terputus.</span>
         </>
       ) : (
         <>

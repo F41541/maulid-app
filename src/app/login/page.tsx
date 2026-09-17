@@ -67,13 +67,13 @@ export default function LoginPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <FormField label="Email / Username" required>
+          <FormField label="Username" required>
             <Input
               type="text"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Contoh: mfaisalfahri02@gmail.com"
+              placeholder="Masukkan username"
               autoComplete="username"
             />
           </FormField>
@@ -84,7 +84,7 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Masukkan password Anda"
+              placeholder="Masukkan password"
               autoComplete="current-password"
             />
           </FormField>
