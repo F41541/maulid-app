@@ -26,7 +26,6 @@ import {
   clearCachedUser,
 } from "@/lib/role-utils";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { OfflineBanner } from "@/components/ui/OfflineBanner";
 
 interface UserSessionState {
   id: string;
@@ -240,8 +239,6 @@ export default function Navbar({
   if (showSidebar) {
     return (
       <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-200">
-        <OfflineBanner />
-
         {/* Desktop Fixed Sidebar */}
         <aside
           aria-label="Sidebar Panitia"
@@ -450,8 +447,6 @@ export default function Navbar({
   // MODE 2: BOTTOM BAR NAVIGATION (Semua role lainnya: Sekretaris, Bendahara, Seksi, Anggota, dll.)
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-200">
-      <OfflineBanner />
-
       {/* Top Header untuk Pengguna Selain Admin / Ketua */}
       <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 no-print transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">

@@ -200,10 +200,17 @@ export default function TamuPage() {
   };
 
   const exportExcelLabel = () => {
+    const sanitizeFormula = (val: string) => {
+      if (val && ["=", "+", "-", "@"].includes(val.charAt(0))) {
+        return `'${val}`;
+      }
+      return val;
+    };
+
     const rows = tamuList.map((t) => [
-      t.nama,
+      sanitizeFormula(t.nama),
       "di",
-      t.alamat || "Tempat",
+      sanitizeFormula(t.alamat || "Tempat"),
     ]);
 
     const worksheetData = [

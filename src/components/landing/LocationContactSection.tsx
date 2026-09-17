@@ -5,7 +5,7 @@ import { MapPin, Navigation, Send, Phone, Mail, CheckCircle2, MessageCircle } fr
 import { useToast } from "@/components/ui/Toast";
 
 export function LocationContactSection() {
-  const { success } = useToast();
+  const { success, error } = useToast();
   const [formData, setFormData] = useState({
     nama: "",
     noHp: "",
@@ -16,13 +16,29 @@ export function LocationContactSection() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nama || !formData.noHp) {
-      alert("Mohon lengkapi nama dan nomor kontak WhatsApp Anda.");
+    if (!formData.nama.trim() || !formData.noHp.trim()) {
+      error("Mohon lengkapi nama dan nomor kontak WhatsApp Anda.");
       return;
     }
 
+    const messageText = [
+      "*Buku Tamu / Pertanyaan Jamaah Maulid Nabi SAW 1448 H*",
+      `*Nama / Instansi:* ${formData.nama}`,
+      `*Nomor Kontak:* ${formData.noHp}`,
+      formData.pesan ? `*Pesan / Pertanyaan:* ${formData.pesan}` : "",
+      "",
+      "_Terkirim via Portal Publik Maulid App_",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const waUrl = `https://wa.me/6281234567890?text=${encodeURIComponent(messageText)}`;
+    if (typeof window !== "undefined") {
+      window.open(waUrl, "_blank", "noopener,noreferrer");
+    }
+
     setSubmitted(true);
-    success("Pesan atau konfirmasi kehadiran Anda telah diterima panitia!");
+    success("Pesan Anda telah disiapkan dan diarahkan langsung ke WhatsApp Panitia!");
     setTimeout(() => {
       setSubmitted(false);
       setFormData({ nama: "", noHp: "", majelis: "", pesan: "" });
@@ -160,8 +176,8 @@ export function LocationContactSection() {
                   type="submit"
                   className="w-full flex items-center justify-center gap-2 bg-brand-forest hover:bg-brand-dark text-white py-3 rounded-xl font-bold text-xs sm:text-sm shadow-md transition duration-200"
                 >
-                  <Send className="w-4 h-4" />
-                  <span>Kirim ke Sekretariat Panitia</span>
+                  <MessageCircle className="w-4 h-4 text-brand-accent" />
+                  <span>Kirim Pesan via WhatsApp Panitia</span>
                 </button>
               </form>
             )}

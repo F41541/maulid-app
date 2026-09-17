@@ -67,11 +67,21 @@ test("2. Seeder & Auth: Ketua account is mfaisalfahri02@gmail.com with password 
     (q) =>
       q.sql &&
       q.sql.includes("admin_users") &&
-      q.sql.includes("mfaisalfahri02@gmail.com")
+      q.sql.includes("INSERT") &&
+      (q.sql.includes("mfaisalfahri02@gmail.com") ||
+        (q.params && q.params.includes("mfaisalfahri02@gmail.com")))
   );
   assert.ok(seedCall, "Seed query must include mfaisalfahri02@gmail.com");
-  assert.ok(seedCall.sql.includes("password"), "Seed query must include password");
-  assert.ok(seedCall.sql.includes("ketua_panitia"), "Seed query must include ketua_panitia");
+  assert.ok(
+    seedCall.sql.includes("password") ||
+      (seedCall.params && seedCall.params.some((p) => typeof p === "string" && (p === "password" || p.includes(":")))),
+    "Seed query must include password or hashed password"
+  );
+  assert.ok(
+    seedCall.sql.includes("ketua_panitia") ||
+      (seedCall.params && seedCall.params.includes("ketua_panitia")),
+    "Seed query must include ketua_panitia"
+  );
 });
 
 test("3. Keuangan Cards: Total Saldo is full-width white card; Dompet & Rekening split into 2 columns", () => {

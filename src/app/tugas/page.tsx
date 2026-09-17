@@ -50,6 +50,7 @@ interface PanitiaOption {
   nama: string;
   jabatan: string;
   seksi_id?: string | null;
+  user_id?: string | null;
 }
 
 interface ProgressStat {
@@ -148,7 +149,7 @@ export default function TugasPage() {
 
   const matchingPanitia = panitiaList.find(
     (p) =>
-      (currentUser?.id && p.id === currentUser.id) ||
+      (currentUser?.id && p.user_id === currentUser.id) ||
       (currentUser?.nama && p.nama.toLowerCase() === currentUser.nama.toLowerCase())
   );
 

@@ -129,16 +129,45 @@ export async function POST(req: NextRequest) {
       const selectedMetode = metode === "transfer" ? "transfer" : "cash";
       const id = randomUUID();
 
-      await execute(
-        "INSERT INTO keuangan (id, tipe, tanggal, keterangan, nominal, metode, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [id, tipe, tanggal, keterangan, parsedNominal, selectedMetode, "aktif"]
-      );
+      if (tipe === "keluar") {
+        let errorResponse: NextResponse | null = null;
+        await withTransaction(async (conn) => {
+          const [rows] = (await conn.query(
+            `SELECT COALESCE(SUM(CASE WHEN tipe = 'masuk' THEN nominal ELSE -nominal END), 0) as saldo
+             FROM keuangan
+             WHERE metode = ? AND (status IS NULL OR status = 'aktif') FOR UPDATE`,
+            [selectedMetode]
+          )) as any;
+          const currentSaldo = Number(rows[0]?.saldo || 0);
+          const labelMetode = selectedMetode === "cash" ? "Dompet (Cash)" : "Rekening Bank";
+          if (currentSaldo < parsedNominal) {
+            errorResponse = NextResponse.json(
+              { error: `Saldo ${labelMetode} tidak mencukupi untuk pengeluaran ini (sisa: Rp ${currentSaldo.toLocaleString("id-ID")})` },
+              { status: 400 }
+            );
+            throw new Error("INSUFFICIENT_BALANCE");
+          }
+          await conn.execute(
+            "INSERT INTO keuangan (id, tipe, tanggal, keterangan, nominal, metode, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [id, tipe, tanggal, keterangan, parsedNominal, selectedMetode, "aktif"]
+          );
+        }).catch((err) => {
+          if (err.message !== "INSUFFICIENT_BALANCE") throw err;
+        });
 
-      return NextResponse.json({ success: true, id });
+        if (errorResponse) return errorResponse;
+        return NextResponse.json({ success: true, id });
+      } else {
+        await execute(
+          "INSERT INTO keuangan (id, tipe, tanggal, keterangan, nominal, metode, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [id, tipe, tanggal, keterangan, parsedNominal, selectedMetode, "aktif"]
+        );
+        return NextResponse.json({ success: true, id });
+      }
     }
 
     // Mutasi internal saldo: Dompet (Cash) <-> Rekening (Transfer)
-    if (action === "mutasi_internal") {
+    if (action === "mutasi_internal" || action === "mutasi") {
       const { dari, ke, nominal, tanggal, catatan } = body;
       if (!dari || !ke || !nominal || !tanggal) {
         return NextResponse.json({ error: "Data mutasi kas tidak lengkap" }, { status: 400 });
@@ -157,24 +186,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Nominal mutasi harus lebih dari 0" }, { status: 400 });
       }
 
-      // Validasi kecukupan saldo sumber
-      const sourceSaldoRow = await queryOne<{ saldo: number }>(`
-        SELECT 
-          COALESCE(SUM(CASE WHEN tipe = 'masuk' THEN nominal ELSE -nominal END), 0) as saldo
-        FROM keuangan
-        WHERE metode = ? AND (status IS NULL OR status = 'aktif')
-      `, [dari]);
-
-      const sourceSaldo = Number(sourceSaldoRow?.saldo || 0);
       const labelDari = dari === "cash" ? "Dompet (Cash)" : "Rekening Bank";
       const labelKe = ke === "cash" ? "Dompet (Cash)" : "Rekening Bank";
-
-      if (sourceSaldo < parsedNominal) {
-        return NextResponse.json(
-          { error: `Saldo ${labelDari} tidak mencukupi (sisa: Rp ${sourceSaldo.toLocaleString("id-ID")})` },
-          { status: 400 }
-        );
-      }
 
       const pairId = randomUUID();
       const idKeluar = randomUUID();
@@ -183,7 +196,25 @@ export async function POST(req: NextRequest) {
       const keteranganKeluar = `Mutasi Pindah Dana ke ${labelKe}${catatan ? ` - ${catatan}` : ""}`;
       const keteranganMasuk = `Mutasi Terima Dana dari ${labelDari}${catatan ? ` - ${catatan}` : ""}`;
 
+      let errorResponse: NextResponse | null = null;
       await withTransaction(async (conn) => {
+        // Validasi kecukupan saldo sumber dengan FOR UPDATE locking
+        const [rows] = (await conn.query(
+          `SELECT COALESCE(SUM(CASE WHEN tipe = 'masuk' THEN nominal ELSE -nominal END), 0) as saldo
+           FROM keuangan
+           WHERE metode = ? AND (status IS NULL OR status = 'aktif') FOR UPDATE`,
+          [dari]
+        )) as any;
+
+        const sourceSaldo = Number(rows[0]?.saldo || 0);
+        if (sourceSaldo < parsedNominal) {
+          errorResponse = NextResponse.json(
+            { error: `Saldo ${labelDari} tidak mencukupi (sisa: Rp ${sourceSaldo.toLocaleString("id-ID")})` },
+            { status: 400 }
+          );
+          throw new Error("INSUFFICIENT_BALANCE");
+        }
+
         // 1. Catat kas keluar dari sumber
         await conn.execute(
           "INSERT INTO keuangan (id, tipe, tanggal, keterangan, nominal, metode, kategori, status, pair_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -195,8 +226,11 @@ export async function POST(req: NextRequest) {
           "INSERT INTO keuangan (id, tipe, tanggal, keterangan, nominal, metode, kategori, status, pair_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [idMasuk, "masuk", tanggal, keteranganMasuk, parsedNominal, ke, "mutasi_internal", "aktif", pairId]
         );
+      }).catch((err) => {
+        if (err.message !== "INSUFFICIENT_BALANCE") throw err;
       });
 
+      if (errorResponse) return errorResponse;
       return NextResponse.json({ success: true, pairId });
     }
 
@@ -230,19 +264,47 @@ export async function POST(req: NextRequest) {
       const actorName = user.nama || user.username;
       const today = getTodayString();
 
+      let errorResponse: NextResponse | null = null;
       await withTransaction(async (conn) => {
         // Jika ini bagian dari mutasi internal berpasangan
         if (tx.pair_id) {
-          const pairs = await query<{
+          const [pairs] = (await conn.query(
+            "SELECT * FROM keuangan WHERE pair_id = ? AND (status IS NULL OR status = 'aktif') FOR UPDATE",
+            [tx.pair_id]
+          )) as any;
+
+          const pairList = (pairs as Array<{
             id: string;
             tipe: "masuk" | "keluar";
             keterangan: string;
             nominal: number;
             metode: string;
             kategori: string;
-          }>("SELECT * FROM keuangan WHERE pair_id = ? AND (status IS NULL OR status = 'aktif')", [tx.pair_id]);
+          }>) || [];
 
-          for (const item of pairs) {
+          // Cek defisit pada kanal yang menerima dana (masuk) jika mutasi dibatalkan
+          const incomingItem = pairList.find((p) => p.tipe === "masuk");
+          if (incomingItem) {
+            const [rows] = (await conn.query(
+              `SELECT COALESCE(SUM(CASE WHEN tipe = 'masuk' THEN nominal ELSE -nominal END), 0) as saldo
+               FROM keuangan
+               WHERE metode = ? AND (status IS NULL OR status = 'aktif') FOR UPDATE`,
+              [incomingItem.metode]
+            )) as any;
+            const currentSaldo = Number(rows[0]?.saldo || 0);
+            const labelMetode = incomingItem.metode === "cash" ? "Dompet (Cash)" : "Rekening Bank";
+            if (currentSaldo < incomingItem.nominal) {
+              errorResponse = NextResponse.json(
+                {
+                  error: `Pembatalan mutasi ditolak: Saldo ${labelMetode} tidak mencukupi (sisa: Rp ${currentSaldo.toLocaleString("id-ID")}, dibutuhkan: Rp ${incomingItem.nominal.toLocaleString("id-ID")}) dan akan menyebabkan saldo minus/defisit.`,
+                },
+                { status: 400 }
+              );
+              throw new Error("INSUFFICIENT_BALANCE");
+            }
+          }
+
+          for (const item of pairList) {
             // Tandai void
             await conn.execute(
               "UPDATE keuangan SET status = 'void', void_reason = ?, void_by = ?, void_at = NOW() WHERE id = ?",
@@ -261,6 +323,27 @@ export async function POST(req: NextRequest) {
           }
         } else {
           // Transaksi tunggal
+          // Jika membatalkan pemasukan, cek apakah saldo saat ini mencukupi agar tidak defisit
+          if (tx.tipe === "masuk") {
+            const [rows] = (await conn.query(
+              `SELECT COALESCE(SUM(CASE WHEN tipe = 'masuk' THEN nominal ELSE -nominal END), 0) as saldo
+               FROM keuangan
+               WHERE metode = ? AND (status IS NULL OR status = 'aktif') FOR UPDATE`,
+              [tx.metode]
+            )) as any;
+            const currentSaldo = Number(rows[0]?.saldo || 0);
+            const labelMetode = tx.metode === "cash" ? "Dompet (Cash)" : "Rekening Bank";
+            if (currentSaldo < tx.nominal) {
+              errorResponse = NextResponse.json(
+                {
+                  error: `Pembatalan pemasukan ditolak: Saldo ${labelMetode} tidak mencukupi (sisa: Rp ${currentSaldo.toLocaleString("id-ID")}, dibutuhkan: Rp ${tx.nominal.toLocaleString("id-ID")}) dan akan menyebabkan saldo minus/defisit.`,
+                },
+                { status: 400 }
+              );
+              throw new Error("INSUFFICIENT_BALANCE");
+            }
+          }
+
           await conn.execute(
             "UPDATE keuangan SET status = 'void', void_reason = ?, void_by = ?, void_at = NOW() WHERE id = ?",
             [voidReason, actorName, tx.id]
@@ -276,8 +359,11 @@ export async function POST(req: NextRequest) {
             [reversalId, reversalTipe, today, reversalKet, tx.nominal, tx.metode, tx.kategori || null, tx.id]
           );
         }
+      }).catch((err) => {
+        if (err.message !== "INSUFFICIENT_BALANCE") throw err;
       });
 
+      if (errorResponse) return errorResponse;
       return NextResponse.json({ success: true });
     }
 

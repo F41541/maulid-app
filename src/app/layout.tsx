@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
 
 export const metadata: Metadata = {
   title: "Aplikasi Manajemen Panitia Maulid Nabi Muhammad SAW",
@@ -35,7 +36,10 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <OfflineBanner />
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

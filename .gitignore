@@ -43,3 +43,7 @@ data/*.db
 # user uploads
 public/uploads/*
 !public/uploads/**/.gitkeep
+
+# codegraph
+.codegraph/
+

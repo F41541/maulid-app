@@ -23,11 +23,11 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border transition-all duration-200",
+        "rounded-2xl border transition-all duration-200 ease-[var(--spring-natural)]",
         "bg-white dark:bg-slate-800/90 border-slate-200/80 dark:border-slate-700 shadow-xs",
         variant === "elevated" && "shadow-md dark:shadow-slate-900/40 border-slate-200 dark:border-slate-600",
         variant === "interactive" &&
-          "cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] hover:border-emerald-300 dark:hover:border-emerald-600",
+          "cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-150 ease-[var(--spring-snappy)] hover:border-emerald-300 dark:hover:border-emerald-600",
         paddingStyles[padding],
         className
       )}

@@ -47,10 +47,13 @@ export function CountdownAcaraCard({ rundown }: CountdownAcaraCardProps) {
       }
 
       // Check if item.hari is a date string YYYY-MM-DD
-      let itemDate = new Date(currentDate);
+      let itemDate: Date;
       if (item.hari && /^\d{4}-\d{2}-\d{2}$/.test(item.hari)) {
         const [y, m, d] = item.hari.split("-").map(Number);
         itemDate = new Date(y, m - 1, d);
+      } else {
+        // Tangani nilai default 'Hari H' dengan tanggal pasti acara: Minggu, 11 Oktober 2026
+        itemDate = new Date(2026, 9, 11);
       }
       itemDate.setHours(hours, minutes, 0, 0);
 

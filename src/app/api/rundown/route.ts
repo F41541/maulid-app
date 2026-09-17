@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    await requireAuth([ROLES.KETUA_PANITIA, ROLES.WAKIL_KETUA, ROLES.SEKRETARIS]);
     const rundown = await query("SELECT * FROM rundown ORDER BY urutan ASC, created_at ASC");
     return NextResponse.json({ rundown });
   } catch (err: unknown) {
@@ -55,10 +55,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Data rundown tidak lengkap" }, { status: 400 });
       }
 
-      await execute(
+      const result = await execute(
         "UPDATE rundown SET hari = ?, waktu = ?, nama_kegiatan = ?, nama_pengisi = ?, catatan = ? WHERE id = ?",
         [hari || "Hari H", waktu, nama_kegiatan, nama_pengisi || null, catatan || null, id]
       );
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Susunan acara tidak ditemukan" }, { status: 404 });
+      }
 
       return NextResponse.json({ success: true });
     }
@@ -82,7 +85,10 @@ export async function POST(req: NextRequest) {
       const { id } = body;
       if (!id) return NextResponse.json({ error: "ID rundown diperlukan" }, { status: 400 });
 
-      await execute("DELETE FROM rundown WHERE id = ?", [id]);
+      const result = await execute("DELETE FROM rundown WHERE id = ?", [id]);
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Susunan acara tidak ditemukan" }, { status: 404 });
+      }
       return NextResponse.json({ success: true });
     }
 

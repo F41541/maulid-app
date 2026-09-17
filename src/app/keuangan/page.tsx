@@ -211,7 +211,7 @@ export default function KeuanganPage() {
       const res = await fetch("/api/keuangan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "mutasi", ...mutasiForm }),
+        body: JSON.stringify({ action: "mutasi_internal", ...mutasiForm }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -289,16 +289,23 @@ export default function KeuanganPage() {
         return;
       }
 
+      const sanitizeFormula = (val: unknown) => {
+        if (typeof val === "string" && ["=", "+", "-", "@"].includes(val.charAt(0))) {
+          return `'${val}`;
+        }
+        return val;
+      };
+
       const rows = allRows.map((t, idx) => [
         idx + 1,
-        t.id,
+        sanitizeFormula(t.id),
         t.tipe === "masuk" ? "Kas Masuk" : "Kas Keluar",
         t.metode === "cash" ? "Dompet Tunai" : "Rekening Bank",
         t.status === "void" ? "Dibatalkan / Void" : "Aktif",
-        t.tanggal,
-        t.keterangan,
+        sanitizeFormula(t.tanggal),
+        sanitizeFormula(t.keterangan),
         t.nominal,
-        t.void_reason || "-",
+        sanitizeFormula(t.void_reason || "-"),
       ]);
 
       const worksheetData = [

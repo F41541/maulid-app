@@ -33,23 +33,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Sanitasi ekstensi file
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    // 3. Verifikasi Magic Bytes (Header biner file gambar)
+    // JPEG starts with: 0xFF, 0xD8, 0xFF
+    // PNG starts with: 0x89, 0x50, 0x4E, 0x47
+    // WebP: RIFF....WEBP
+    const isJpeg = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    const isPng = buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+    const isWebp =
+      buffer.length >= 12 &&
+      buffer[0] === 0x52 &&
+      buffer[1] === 0x49 &&
+      buffer[2] === 0x46 &&
+      buffer[3] === 0x46 &&
+      buffer[8] === 0x57 &&
+      buffer[9] === 0x45 &&
+      buffer[10] === 0x42 &&
+      buffer[11] === 0x50;
+
+    if (!isJpeg && !isPng && !isWebp) {
+      return NextResponse.json(
+        { error: "Isi berkas tidak valid atau bukan gambar biner (JPEG, PNG, WebP) yang sah." },
+        { status: 400 }
+      );
+    }
+
+    // 4. Sanitasi ekstensi file sesuai hasil verifikasi biner
     let ext = ".jpg";
-    if (file.type === "image/png") ext = ".png";
-    if (file.type === "image/webp") ext = ".webp";
+    if (isPng) ext = ".png";
+    if (isWebp) ext = ".webp";
 
     const fileName = `dok-${randomUUID()}${ext}`;
     const uploadDir = path.join(process.cwd(), "public", "uploads", "dokumentasi");
 
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
+    await fs.promises.mkdir(uploadDir, { recursive: true });
     const filePath = path.join(uploadDir, fileName);
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    fs.writeFileSync(filePath, buffer);
+    await fs.promises.writeFile(filePath, buffer);
 
     const publicUrl = `/uploads/dokumentasi/${fileName}`;
 

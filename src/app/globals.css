@@ -39,18 +39,18 @@
   --duration-motion-deliberate: var(--motion-deliberate);
   --duration-motion-extended: var(--motion-extended);
 
-  --color-brand-dark: #0c2e1b;
-  --color-brand-forest: #113c23;
-  --color-brand-emerald: #16482a;
-  --color-brand-accent: #d4e359;
-  --color-brand-accent-hover: #c4d44b;
-  --color-brand-accentHover: #c4d44b;
-  --color-brand-accent-light: #f4f8d3;
-  --color-brand-accentLight: #f4f8d3;
-  --color-brand-card-bg: #f9faf6;
-  --color-brand-cardBg: #f9faf6;
-  --color-brand-border-light: #e4ead3;
-  --color-brand-borderLight: #e4ead3;
+  --color-brand-dark: var(--color-brand-dark);
+  --color-brand-forest: var(--color-brand-forest);
+  --color-brand-emerald: var(--color-brand-emerald);
+  --color-brand-accent: var(--color-brand-accent);
+  --color-brand-accent-hover: var(--color-brand-accent-hover);
+  --color-brand-accentHover: var(--color-brand-accentHover);
+  --color-brand-accent-light: var(--color-brand-accent-light);
+  --color-brand-accentLight: var(--color-brand-accentLight);
+  --color-brand-card-bg: var(--color-brand-card-bg);
+  --color-brand-cardBg: var(--color-brand-cardBg);
+  --color-brand-border-light: var(--color-brand-border-light);
+  --color-brand-borderLight: var(--color-brand-borderLight);
 
   --font-serif: "Playfair Display", Georgia, Cambria, "Times New Roman", serif;
 }
@@ -76,7 +76,7 @@
 }
 
 .scalloped-badge {
-  border-radius: 40% 40% 42% 42% / 30% 30% 50% 50%;
+  border-radius: var(--radius-scalloped);
 }
 
 :root {
@@ -184,16 +184,36 @@ body {
   animation: kineticFadeIn var(--motion-normal) var(--spring-natural) both;
 }
 
+@keyframes shimmerWave {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--shimmer-base) 0%,
+    var(--shimmer-highlight) 50%,
+    var(--shimmer-base) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmerWave var(--motion-shimmer) var(--spring-natural) infinite;
+}
+
 .print-only {
   display: none;
 }
 
 @media print {
   html body .no-print {
-    display: none !important;
+    display: none;
   }
   html body .print-only {
-    display: block !important;
+    display: block;
   }
   body {
     background-color: var(--surface-base);

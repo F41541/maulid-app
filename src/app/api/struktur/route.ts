@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    await requireAuth([ROLES.KETUA_PANITIA, ROLES.WAKIL_KETUA]);
 
     const panitiaList = await query(`
       SELECT 
@@ -42,6 +42,9 @@ export async function GET(req: NextRequest) {
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (err instanceof Error && err.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Hanya Ketua dan Wakil Ketua Panitia yang dapat mengakses struktur" }, { status: 403 });
+    }
     console.error("[Struktur API] GET Error:", err);
     return NextResponse.json({ error: "Terjadi kesalahan pada server" }, { status: 500 });
   }
@@ -74,10 +77,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Data panitia tidak lengkap" }, { status: 400 });
       }
 
-      await execute(
+      const result = await execute(
         "UPDATE panitia SET nama = ?, jabatan = ?, seksi_id = ?, no_hp = ?, catatan = ? WHERE id = ?",
         [nama, jabatan, seksi_id || null, no_hp || null, catatan || null, id]
       );
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Panitia tidak ditemukan" }, { status: 404 });
+      }
 
       return NextResponse.json({ success: true });
     }
@@ -98,7 +104,10 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await execute("DELETE FROM panitia WHERE id = ?", [id]);
+      const result = await execute("DELETE FROM panitia WHERE id = ?", [id]);
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Panitia tidak ditemukan" }, { status: 404 });
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -134,6 +143,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Data seksi tidak lengkap" }, { status: 400 });
       }
 
+      const existingSeksi = await queryOne("SELECT id FROM seksi WHERE id = ?", [id]);
+      if (!existingSeksi) {
+        return NextResponse.json({ error: "Seksi tidak ditemukan" }, { status: 404 });
+      }
+
       // Verify koordinator exists
       const koordinator = await queryOne("SELECT id FROM panitia WHERE id = ?", [koordinator_id]);
       if (!koordinator) {
@@ -156,6 +170,11 @@ export async function POST(req: NextRequest) {
     if (action === "delete_seksi") {
       const { id } = body;
       if (!id) return NextResponse.json({ error: "ID seksi diperlukan" }, { status: 400 });
+
+      const existingSeksi = await queryOne("SELECT id FROM seksi WHERE id = ?", [id]);
+      if (!existingSeksi) {
+        return NextResponse.json({ error: "Seksi tidak ditemukan" }, { status: 404 });
+      }
 
       await withTransaction(async (conn) => {
         // Detach panitia assigned to this seksi

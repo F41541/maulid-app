@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS `tugas` (
   `pj_id` VARCHAR(36) DEFAULT NULL,
   `foto_dokumentasi` TEXT DEFAULT NULL,
   `is_umum` TINYINT(1) NOT NULL DEFAULT 0,
+  `target_role` VARCHAR(50) DEFAULT NULL,
+  `created_by` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_tugas_seksi` (`seksi_id`),

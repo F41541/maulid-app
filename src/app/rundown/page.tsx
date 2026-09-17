@@ -19,7 +19,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { useToast } from "@/lib/toast";
 import { useConfirm } from "@/lib/use-confirm";
 import { useAuth } from "@/lib/use-auth";
-import { isKetuaRole } from "@/lib/role-utils";
+import { isKetuaRole, isWakilRole } from "@/lib/role-utils";
 import { formatTanggal, getTodayString } from "@/lib/format";
 import { RundownModal } from "./components/RundownModal";
 
@@ -150,6 +150,8 @@ export default function RundownPage() {
   const canEditRundown = Boolean(
     currentUser &&
       (isKetuaRole(currentUser.role, currentUser.jabatan) ||
+        isWakilRole(currentUser.role, currentUser.jabatan) ||
+        currentUser.role === "wakil_ketua" ||
         currentUser.role === "sekretaris")
   );
 
@@ -157,7 +159,7 @@ export default function RundownPage() {
     const now = new Date();
     const nowTime = now.getTime();
 
-    const mapped = items.map((item) => {
+    return items.map((item) => {
       const timeMatch = item.waktu.match(/(\d{1,2})[:.](\d{2})/);
       let hours = 0;
       let minutes = 0;
@@ -175,16 +177,6 @@ export default function RundownPage() {
       const isPast = ts < nowTime;
       return { ...item, timestamp: ts, isPast };
     });
-
-    // Urutkan dinamis: yang belum lewat (terdekat dari sekarang) di atas, yang sudah lewat di bawah
-    const upcoming = mapped
-      .filter((it) => !it.isPast)
-      .sort((a, b) => a.timestamp - b.timestamp);
-    const past = mapped
-      .filter((it) => it.isPast)
-      .sort((a, b) => a.timestamp - b.timestamp);
-
-    return [...upcoming, ...past];
   }, [items]);
 
   return (
@@ -245,7 +237,7 @@ export default function RundownPage() {
                     {/* Urutan badge tanpa tombol atas-bawah */}
                     <div className="flex flex-col items-center justify-center shrink-0">
                       <span className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center justify-center shadow-2xs border border-emerald-200 dark:border-emerald-800">
-                        {index + 1}
+                        {item.urutan}
                       </span>
                     </div>
 

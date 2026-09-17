@@ -17,6 +17,7 @@
   --motion-normal: 240ms;
   --motion-deliberate: 360ms;
   --motion-extended: 500ms;
+  --motion-shimmer: 1800ms;
 
   /* Cascading Stagger Calculations */
   --stagger-step: 35ms;
@@ -36,5 +37,6 @@
     --motion-normal: 0.01ms;
     --motion-deliberate: 0.01ms;
     --motion-extended: 0.01ms;
+    --motion-shimmer: 0.01ms;
   }
 }

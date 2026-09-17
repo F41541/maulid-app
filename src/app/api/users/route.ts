@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 
 export async function GET() {
   try {
-    await requireAuth([ROLES.KETUA_PANITIA]);
+    await requireAuth([ROLES.KETUA_PANITIA, ROLES.WAKIL_KETUA]);
 
     const users = await query(`
       SELECT 
@@ -34,7 +34,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     if (err instanceof Error && err.message === "FORBIDDEN") {
-      return NextResponse.json({ error: "Hanya Ketua Panitia yang dapat mengelola akun pengguna" }, { status: 403 });
+      return NextResponse.json({ error: "Hanya Ketua dan Wakil Ketua Panitia yang dapat mengelola akun pengguna" }, { status: 403 });
     }
     console.error("[Users API] GET Error:", err);
     return NextResponse.json({ error: "Terjadi kesalahan pada server" }, { status: 500 });
@@ -43,7 +43,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const currentUser = await requireAuth([ROLES.KETUA_PANITIA]);
+    const currentUser = await requireAuth([ROLES.KETUA_PANITIA, ROLES.WAKIL_KETUA]);
     const body = await req.json();
     const { action } = body;
 
@@ -56,6 +56,10 @@ export async function POST(req: NextRequest) {
 
       if (username.length < 3) {
         return NextResponse.json({ error: "Username minimal 3 karakter" }, { status: 400 });
+      }
+
+      if (username.includes(":")) {
+        return NextResponse.json({ error: "Username tidak boleh mengandung karakter titik dua (:)" }, { status: 400 });
       }
 
       if (password.length < 5) {
@@ -117,10 +121,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === "toggle_status") {
+      const { id, status } = body;
+      if (!id) {
+        return NextResponse.json({ error: "ID pengguna diperlukan" }, { status: 400 });
+      }
+
+      if (id === currentUser.id) {
+        return NextResponse.json({ error: "Tidak dapat mengubah status akun sendiri yang sedang aktif" }, { status: 400 });
+      }
+
+      const targetUser = await queryOne<{ id: string; status: string }>(
+        "SELECT id, status FROM admin_users WHERE id = ?",
+        [id]
+      );
+
+      if (!targetUser) {
+        return NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 404 });
+      }
+
+      const nextStatus = status || (targetUser.status === "aktif" ? "nonaktif" : "aktif");
+      const result = await execute("UPDATE admin_users SET status = ? WHERE id = ?", [nextStatus, id]);
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true, status: nextStatus });
+    }
+
     if (action === "update") {
       const { id, username, nama, role, seksi_id, new_password } = body;
       if (!id || !username || !nama || !role) {
         return NextResponse.json({ error: "Data pengguna tidak lengkap" }, { status: 400 });
+      }
+
+      if (username.length < 3) {
+        return NextResponse.json({ error: "Username minimal 3 karakter" }, { status: 400 });
+      }
+
+      if (username.includes(":")) {
+        return NextResponse.json({ error: "Username tidak boleh mengandung karakter titik dua (:)" }, { status: 400 });
       }
 
       // Check if username is taken by another user
@@ -142,15 +182,21 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Password minimal 5 karakter" }, { status: 400 });
         }
         const hashedPassword = hashPassword(new_password);
-        await execute(
+        const result = await execute(
           "UPDATE admin_users SET username = ?, nama = ?, role = ?, seksi_id = ?, password = ? WHERE id = ?",
           [username, nama, normalizedRole, targetSeksiId, hashedPassword, id]
         );
+        if (result.affectedRows === 0) {
+          return NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 404 });
+        }
       } else {
-        await execute(
+        const result = await execute(
           "UPDATE admin_users SET username = ?, nama = ?, role = ?, seksi_id = ? WHERE id = ?",
           [username, nama, normalizedRole, targetSeksiId, id]
         );
+        if (result.affectedRows === 0) {
+          return NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 404 });
+        }
       }
 
       return NextResponse.json({ success: true });
@@ -162,6 +208,11 @@ export async function POST(req: NextRequest) {
 
       if (id === currentUser.id) {
         return NextResponse.json({ error: "Tidak dapat menghapus akun sendiri yang sedang aktif" }, { status: 400 });
+      }
+
+      const existing = await queryOne<{ id: string }>("SELECT id FROM admin_users WHERE id = ?", [id]);
+      if (!existing) {
+        return NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 404 });
       }
 
       await withTransaction(async (conn) => {
@@ -180,7 +231,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     if (err instanceof Error && err.message === "FORBIDDEN") {
-      return NextResponse.json({ error: "Hanya Ketua Panitia yang dapat mengelola akun pengguna" }, { status: 403 });
+      return NextResponse.json({ error: "Hanya Ketua dan Wakil Ketua Panitia yang dapat mengelola akun pengguna" }, { status: 403 });
     }
     console.error("[Users API] POST Error:", err);
     return NextResponse.json({ error: "Terjadi kesalahan pada server" }, { status: 500 });

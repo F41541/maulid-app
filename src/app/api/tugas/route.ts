@@ -2,8 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne, execute } from "@/lib/db";
 import { requireAuth, ROLES, isKetuaRole, isWakilRole } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 
 const VALID_STATUSES = ["Belum Mulai", "Proses", "Selesai"];
+
+function safeUnlinkPhoto(photoUrl?: string | null) {
+  if (!photoUrl || typeof photoUrl !== "string") return;
+  if (!photoUrl.startsWith("/uploads/dokumentasi/")) return;
+  try {
+    const filename = path.basename(photoUrl);
+    const diskPath = path.join(process.cwd(), "public", "uploads", "dokumentasi", filename);
+    if (fs.existsSync(diskPath)) {
+      fs.unlinkSync(diskPath);
+    }
+  } catch (err) {
+    console.error("[Cleanup foto tugas error]:", err);
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -52,7 +68,7 @@ export async function GET(req: NextRequest) {
 
     const tugasList = await query(sql, params);
     const seksiList = await query("SELECT id, nama_seksi FROM seksi ORDER BY nama_seksi ASC");
-    const panitiaList = await query("SELECT id, nama, jabatan, seksi_id FROM panitia ORDER BY nama ASC");
+    const panitiaList = await query("SELECT id, nama, jabatan, seksi_id, user_id FROM panitia ORDER BY nama ASC");
 
     // Summary statistics per seksi
     const progressStats = await query(`
@@ -153,8 +169,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Data tugas tidak lengkap" }, { status: 400 });
       }
 
-      const existing = await queryOne<{ id: string; seksi_id?: string; created_by?: string; is_umum?: number }>(
-        "SELECT id, seksi_id, created_by, is_umum FROM tugas WHERE id = ?",
+      const existing = await queryOne<{ id: string; seksi_id?: string; created_by?: string; is_umum?: number; foto_dokumentasi?: string | null }>(
+        "SELECT id, seksi_id, created_by, is_umum, foto_dokumentasi FROM tugas WHERE id = ?",
         [id]
       );
 
@@ -171,7 +187,7 @@ export async function POST(req: NextRequest) {
       const isUmumVal = canEditUmum && body.is_umum !== undefined ? (body.is_umum ? 1 : 0) : (existing.is_umum || 0);
       const taskStatus = status && VALID_STATUSES.includes(status) ? status : "Belum Mulai";
 
-      await execute(
+      const result = await execute(
         "UPDATE tugas SET seksi_id = ?, target_role = ?, nama_tugas = ?, deskripsi = ?, status = ?, deadline = ?, pj_id = ?, foto_dokumentasi = ?, is_umum = ? WHERE id = ?",
         [
           seksi_id || null,
@@ -186,6 +202,15 @@ export async function POST(req: NextRequest) {
           id,
         ]
       );
+
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Tugas tidak ditemukan" }, { status: 404 });
+      }
+
+      // If photo changed/removed, delete old orphaned photo file only after DB update succeeds
+      if (existing.foto_dokumentasi && existing.foto_dokumentasi !== foto_dokumentasi) {
+        safeUnlinkPhoto(existing.foto_dokumentasi);
+      }
 
       return NextResponse.json({ success: true });
     }
@@ -210,7 +235,11 @@ export async function POST(req: NextRequest) {
       }
 
       // Pengubahan status tugas boleh siapa saja dan tersinkron ke semua halaman
-      await execute("UPDATE tugas SET status = ? WHERE id = ?", [status, id]);
+      const result = await execute("UPDATE tugas SET status = ? WHERE id = ?", [status, id]);
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Tugas tidak ditemukan" }, { status: 404 });
+      }
+
       return NextResponse.json({ success: true });
     }
 
@@ -218,8 +247,8 @@ export async function POST(req: NextRequest) {
       const { id } = body;
       if (!id) return NextResponse.json({ error: "ID tugas diperlukan" }, { status: 400 });
 
-      const existing = await queryOne<{ id: string; seksi_id?: string; created_by?: string }>(
-        "SELECT id, seksi_id, created_by FROM tugas WHERE id = ?",
+      const existing = await queryOne<{ id: string; seksi_id?: string; created_by?: string; foto_dokumentasi?: string | null }>(
+        "SELECT id, seksi_id, created_by, foto_dokumentasi FROM tugas WHERE id = ?",
         [id]
       );
 
@@ -231,7 +260,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Anda tidak berhak menghapus tugas seksi lain" }, { status: 403 });
       }
 
-      await execute("DELETE FROM tugas WHERE id = ?", [id]);
+      const result = await execute("DELETE FROM tugas WHERE id = ?", [id]);
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Tugas tidak ditemukan" }, { status: 404 });
+      }
+
+      // Cleanup uploaded documentation photo if it exists
+      if (existing.foto_dokumentasi) {
+        safeUnlinkPhoto(existing.foto_dokumentasi);
+      }
+
       return NextResponse.json({ success: true });
     }
 

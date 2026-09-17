@@ -86,8 +86,8 @@ export function proxy(request: NextRequest) {
   let role = verifiedSession.role || "";
   if (role === "admin") role = "ketua_panitia";
 
-  // Route guards
-  if (pathname.startsWith("/pengguna") && role !== "ketua_panitia") {
+  // Route guards for Pages
+  if (pathname.startsWith("/pengguna") && !["ketua_panitia", "wakil_ketua"].includes(role)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
   if (
@@ -107,6 +107,20 @@ export function proxy(request: NextRequest) {
     !["ketua_panitia", "wakil_ketua"].includes(role)
   ) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // API Role Guards
+  if (pathname.startsWith("/api/users") && !["ketua_panitia", "wakil_ketua"].includes(role)) {
+    return applyCorsHeaders(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+  }
+  if (pathname.startsWith("/api/keuangan") && !["ketua_panitia", "wakil_ketua", "bendahara"].includes(role)) {
+    return applyCorsHeaders(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+  }
+  if ((pathname.startsWith("/api/tamu") || pathname.startsWith("/api/rundown")) && !["ketua_panitia", "wakil_ketua", "sekretaris"].includes(role)) {
+    return applyCorsHeaders(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+  }
+  if (pathname.startsWith("/api/struktur") && !["ketua_panitia", "wakil_ketua"].includes(role)) {
+    return applyCorsHeaders(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
   }
 
   return applyCorsHeaders(NextResponse.next());

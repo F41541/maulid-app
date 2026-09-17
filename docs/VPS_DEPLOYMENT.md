@@ -99,6 +99,9 @@ DB_NAME=maulid_app
 # Environment
 NODE_ENV=production
 PORT=3000
+
+# Secret Key Sesi (Wajib diisi string acak & kuat)
+AUTH_SECRET=rahasia-token-panitia-maulid-super-aman-1448h
 ```
 Simpan file (`Ctrl + O`, lalu `Enter`, lalu `Ctrl + X`).
 

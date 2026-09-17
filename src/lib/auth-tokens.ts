@@ -29,6 +29,14 @@ export {
   getNavRoutes,
 } from "./role-utils.ts";
 
+if (process.env.NODE_ENV === "production" && !process.env.AUTH_SECRET) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    console.warn("WARNING: AUTH_SECRET is not defined during build. Ensure AUTH_SECRET is set in production runtime!");
+  } else {
+    console.error("FATAL ERROR: AUTH_SECRET must be defined in production environment!");
+    throw new Error("FATAL: AUTH_SECRET must be defined in production environment!");
+  }
+}
 const AUTH_SECRET = process.env.AUTH_SECRET || "maulid-app-super-secret-key-1448h-2026m";
 
 export function hashPassword(password: string): string {
@@ -43,7 +51,10 @@ export function verifyPassword(password: string, storedHash: string): boolean {
     const [salt, originalHash] = storedHash.split(":");
     if (!salt || !originalHash) return false;
     const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, "sha512").toString("hex");
-    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(originalHash));
+    const hashBuf = Buffer.from(hash);
+    const origBuf = Buffer.from(originalHash);
+    if (hashBuf.length !== origBuf.length) return false;
+    return crypto.timingSafeEqual(hashBuf, origBuf);
   }
   // Fallback for legacy plain text testing passwords
   return password === storedHash;
@@ -55,6 +66,9 @@ export function signToken(payload: string): string {
 }
 
 export function createSessionToken(user: SessionUser): string {
+  if (user.username && user.username.includes(":")) {
+    throw new Error("Username cannot contain ':' delimiter");
+  }
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
   const seksiId = user.seksi_id || "";
   const role = user.role || "ketua_panitia";

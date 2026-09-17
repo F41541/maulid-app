@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await execute(
+      const result = await execute(
         "UPDATE tamu SET nama = ?, alamat = ?, status = ?, pengundang = ?, kehadiran = ?, catatan = ? WHERE id = ?",
         [
           nama,
@@ -149,6 +149,10 @@ export async function POST(req: NextRequest) {
           id,
         ]
       );
+
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Tamu tidak ditemukan" }, { status: 404 });
+      }
 
       return NextResponse.json({ success: true });
     }
@@ -166,7 +170,10 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await execute("UPDATE tamu SET kehadiran = ? WHERE id = ?", [kehadiran, id]);
+      const result = await execute("UPDATE tamu SET kehadiran = ? WHERE id = ?", [kehadiran, id]);
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Tamu tidak ditemukan" }, { status: 404 });
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -174,7 +181,10 @@ export async function POST(req: NextRequest) {
       const { id } = body;
       if (!id) return NextResponse.json({ error: "ID tamu diperlukan" }, { status: 400 });
 
-      await execute("DELETE FROM tamu WHERE id = ?", [id]);
+      const result = await execute("DELETE FROM tamu WHERE id = ?", [id]);
+      if (result.affectedRows === 0) {
+        return NextResponse.json({ error: "Tamu tidak ditemukan" }, { status: 404 });
+      }
       return NextResponse.json({ success: true });
     }
 

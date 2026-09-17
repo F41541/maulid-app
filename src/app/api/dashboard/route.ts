@@ -113,6 +113,12 @@ export async function GET(req: NextRequest) {
 
     const urgentTasks = await query(urgentQuery, urgentParams);
 
+    const canViewKeuangan = [
+      ROLES.KETUA_PANITIA,
+      ROLES.WAKIL_KETUA,
+      ROLES.BENDAHARA,
+    ].includes(user.role as any);
+
     return NextResponse.json({
       userRole: user.role,
       userSeksiId: user.seksi_id || null,
@@ -123,13 +129,21 @@ export async function GET(req: NextRequest) {
       persentaseTugas,
       totalTugas,
       tugasSelesai,
-      keuangan: {
-        totalMasuk,
-        totalKeluar,
-        saldoKas,
-        saldoCash,
-        saldoRekening,
-      },
+      keuangan: canViewKeuangan
+        ? {
+            totalMasuk,
+            totalKeluar,
+            saldoKas,
+            saldoCash,
+            saldoRekening,
+          }
+        : {
+            totalMasuk: 0,
+            totalKeluar: 0,
+            saldoKas: 0,
+            saldoCash: 0,
+            saldoRekening: 0,
+          },
       rundownPreview,
       urgentTasks,
     });

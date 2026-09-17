@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Calendar, Clock, MapPin, ArrowRight, ShieldCheck, HeartHandshake } from "lucide-react";
 
 export function HeroSection() {
-  // Live Countdown to Maulid event (Kamis, 12 Rabiul Awal 1448 H / approx September 24, 2026, 19:30:00 WIB)
+  // Live Countdown to Maulid event (Minggu, 11 Oktober 2026, 19:30:00 WIB)
   const [timeLeft, setTimeLeft] = useState({
     days: 6,
     hours: 14,

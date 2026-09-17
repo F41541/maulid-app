@@ -1,5 +1,6 @@
 import mysql from "mysql2/promise";
 import type { Pool, RowDataPacket, ResultSetHeader } from "mysql2/promise";
+import { hashPassword } from "./auth-tokens.ts";
 
 let _pool: Pool | null = null;
 let _initialized = false;
@@ -156,6 +157,8 @@ export async function initSchema(customPool?: Pool): Promise<void> {
       pj_id VARCHAR(36) NULL,
       foto_dokumentasi TEXT NULL,
       is_umum TINYINT(1) NOT NULL DEFAULT 0,
+      target_role VARCHAR(50) NULL,
+      created_by VARCHAR(36) NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_tugas_seksi FOREIGN KEY (seksi_id) REFERENCES seksi(id) ON DELETE CASCADE,
       CONSTRAINT fk_tugas_pj FOREIGN KEY (pj_id) REFERENCES panitia(id) ON DELETE SET NULL
@@ -218,6 +221,8 @@ export async function initSchema(customPool?: Pool): Promise<void> {
   await addCol("admin_users", "status", "VARCHAR(20) NOT NULL DEFAULT 'aktif'");
   await addCol("tugas", "foto_dokumentasi", "TEXT NULL");
   await addCol("tugas", "is_umum", "TINYINT(1) NOT NULL DEFAULT 0");
+  await addCol("tugas", "target_role", "VARCHAR(50) NULL");
+  await addCol("tugas", "created_by", "VARCHAR(36) NULL");
   await addCol("keuangan", "status", "ENUM('aktif', 'void', 'reversal') NOT NULL DEFAULT 'aktif'");
   await addCol("keuangan", "void_reason", "TEXT NULL");
   await addCol("keuangan", "void_by", "VARCHAR(255) NULL");
@@ -242,14 +247,15 @@ export async function seedInitialData(customPool?: Pool): Promise<void> {
   if (adminUsers.length === 0) {
     await pool.execute(
       "INSERT INTO admin_users (id, username, password, nama, role) VALUES (?, ?, ?, ?, ?)",
-      ["admin-1", "admin", "admin123", "Sekretariat Panitia", "ketua_panitia"]
+      ["admin-1", "admin", hashPassword("admin123"), "Sekretariat Panitia", "ketua_panitia"]
     );
   } else {
     await pool.execute("UPDATE admin_users SET role = 'ketua_panitia' WHERE role = 'admin'");
   }
 
+  // Idempotent migration for old legacy placeholder without overwriting user password
   await pool.execute(
-    "UPDATE admin_users SET username = 'mfaisalfahri02@gmail.com', password = 'password', nama = 'Ketua Panitia', role = 'ketua_panitia' WHERE username = 'admin@example.com' OR id = 'admin-2'"
+    "UPDATE admin_users SET username = 'mfaisalfahri02@gmail.com', nama = 'Ketua Panitia', role = 'ketua_panitia' WHERE username = 'admin@example.com'"
   );
 
   const [ketuaUser] = (await pool.query(
@@ -260,7 +266,7 @@ export async function seedInitialData(customPool?: Pool): Promise<void> {
   if (ketuaUser.length === 0) {
     await pool.execute(
       "INSERT INTO admin_users (id, username, password, nama, role) VALUES (?, ?, ?, ?, ?)",
-      ["admin-2", "mfaisalfahri02@gmail.com", "password", "Ketua Panitia", "ketua_panitia"]
+      ["admin-2", "mfaisalfahri02@gmail.com", hashPassword("password"), "Ketua Panitia", "ketua_panitia"]
     );
   }
 
@@ -312,24 +318,24 @@ export async function seedInitialData(customPool?: Pool): Promise<void> {
     const pAcaraMember = "p-10";
     await pool.execute(insertPanitiaSql, [pAcaraMember, "Fajar Nugraha", "Anggota Seksi", s1, "081298765431", "Operator Audio"]);
 
-    // 4. Initial Rundown (Sambutan sebelum Al-Qur'an, Penceramah dikedepankan setelah Al-Qur'an)
+    // 4. Initial Rundown (11 Oktober 2026)
     const insertRundownSql =
       "INSERT INTO rundown (id, hari, waktu, nama_kegiatan, nama_pengisi, catatan, urutan) VALUES (?, ?, ?, ?, ?, ?, ?)";
-    await pool.execute(insertRundownSql, ["r-1", "Hari H", "19:30 - 19:45", "Pembukaan & Tawasul", "Ustadz H. Mansur", "Acara dimulai tepat waktu", 1]);
-    await pool.execute(insertRundownSql, ["r-4", "Hari H", "19:45 - 20:05", "Sambutan Ketua Panitia & Pelindung", "Muhammad Rizky & K.H. Ahmad Fauzi", "Masing-masing 7 - 10 menit", 2]);
-    await pool.execute(insertRundownSql, ["r-2", "Hari H", "20:05 - 20:30", "Pembacaan Ayat Suci Al-Qur'an", "Ustadz Qori Syamsuri", "Surat Al-Ahzab", 3]);
-    await pool.execute(insertRundownSql, ["r-5", "Hari H", "20:30 - 21:45", "Mau'idhoh Hasanah / Tausiyah Inti", "Habib Umar bin Yahya", "Tema Meneladani Akhlak Rasulullah SAW", 4]);
-    await pool.execute(insertRundownSql, ["r-3", "Hari H", "21:45 - 22:30", "Pembacaan Maulid Diba'i & Sholawat", "Grup Hadroh Syubban", "Jamaah berdiri saat mahalul qiyam", 5]);
-    await pool.execute(insertRundownSql, ["r-6", "Hari H", "22:30 - 22:45", "Doa Penutup & Ramah Tamah", "K.H. Ahmad Fauzi", "Pembagian konsumsi berkah", 6]);
+    await pool.execute(insertRundownSql, ["r-1", "2026-10-11", "19:30 - 19:45", "Pembukaan & Tawasul", "Ustadz H. Mansur", "Acara dimulai tepat waktu", 1]);
+    await pool.execute(insertRundownSql, ["r-4", "2026-10-11", "19:45 - 20:05", "Sambutan Ketua Panitia & Pelindung", "Muhammad Rizky & K.H. Ahmad Fauzi", "Masing-masing 7 - 10 menit", 2]);
+    await pool.execute(insertRundownSql, ["r-2", "2026-10-11", "20:05 - 20:30", "Pembacaan Ayat Suci Al-Qur'an", "Ustadz Qori Syamsuri", "Surat Al-Ahzab", 3]);
+    await pool.execute(insertRundownSql, ["r-5", "2026-10-11", "20:30 - 21:45", "Mau'idhoh Hasanah / Tausiyah Inti", "Habib Umar bin Yahya", "Tema Meneladani Akhlak Rasulullah SAW", 4]);
+    await pool.execute(insertRundownSql, ["r-3", "2026-10-11", "21:45 - 22:30", "Pembacaan Maulid Diba'i & Sholawat", "Grup Hadroh Syubban", "Jamaah berdiri saat mahalul qiyam", 5]);
+    await pool.execute(insertRundownSql, ["r-6", "2026-10-11", "22:30 - 22:45", "Doa Penutup & Ramah Tamah", "K.H. Ahmad Fauzi", "Pembagian konsumsi berkah", 6]);
 
-    // 5. Initial Tugas
+    // 5. Initial Tugas (Deadline menuju 11 Oktober 2026)
     const insertTugasSql =
       "INSERT INTO tugas (id, seksi_id, nama_tugas, deskripsi, status, deadline, pj_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
-    await pool.execute(insertTugasSql, ["t-1", s1, "Konfirmasi Jadwal Penceramah & Qori", "Hubungi Habib dan Qori H-3 acara", "Selesai", "2026-09-14", pAcara]);
-    await pool.execute(insertTugasSql, ["t-2", s1, "Siapkan Teks Rawi Maulid & MC", "Cetak panduan pembacaan maulid", "Proses", "2026-09-15", pAcaraMember]);
-    await pool.execute(insertTugasSql, ["t-3", s2, "Sewa Tenda, Panggung & Sound System", "Kapasitas 500 jamaah di halaman masjid", "Selesai", "2026-09-12", pPerlengkapan]);
-    await pool.execute(insertTugasSql, ["t-4", s2, "Pemasangan Lampu Sorot & Banner Panggung", "Banner ukuran 6x3 meter dan penerangan", "Proses", "2026-09-16", pPerlengkapan]);
-    await pool.execute(insertTugasSql, ["t-5", s3, "Pemesanan Snack Box & Nasi Kebuli", "Pesan 500 kotak makanan berkah", "Belum Mulai", "2026-09-16", pKonsumsi]);
+    await pool.execute(insertTugasSql, ["t-1", s1, "Konfirmasi Jadwal Penceramah & Qori", "Hubungi Habib dan Qori H-3 acara", "Selesai", "2026-10-08", pAcara]);
+    await pool.execute(insertTugasSql, ["t-2", s1, "Siapkan Teks Rawi Maulid & MC", "Cetak panduan pembacaan maulid", "Proses", "2026-10-09", pAcaraMember]);
+    await pool.execute(insertTugasSql, ["t-3", s2, "Sewa Tenda, Panggung & Sound System", "Kapasitas 500 jamaah di halaman masjid", "Selesai", "2026-10-05", pPerlengkapan]);
+    await pool.execute(insertTugasSql, ["t-4", s2, "Pemasangan Lampu Sorot & Banner Panggung", "Banner ukuran 6x3 meter dan penerangan", "Proses", "2026-10-10", pPerlengkapan]);
+    await pool.execute(insertTugasSql, ["t-5", s3, "Pemesanan Snack Box & Nasi Kebuli", "Pesan 500 kotak makanan berkah", "Belum Mulai", "2026-10-10", pKonsumsi]);
 
     // 6. Initial Keuangan
     const insertKeuanganSql =

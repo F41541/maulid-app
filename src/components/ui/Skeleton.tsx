@@ -27,7 +27,7 @@ export function Skeleton({
     <div
       aria-hidden="true"
       className={cn(
-        "animate-pulse bg-slate-200/80 dark:bg-slate-700/60 shrink-0",
+        "animate-shimmer shrink-0",
         variantClasses[variant],
         className
       )}
