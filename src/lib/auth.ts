@@ -1,32 +1,64 @@
 import { cookies } from "next/headers";
-import { getDb } from "./db";
+import { queryOne } from "./db";
+import {
+  SessionUser,
+  verifySessionToken,
+  createSessionToken,
+} from "./auth-tokens";
 
-export interface SessionUser {
-  id: string;
-  username: string;
-  nama: string;
-  role?: string;
-}
+export * from "./auth-tokens";
 
 export async function getSession(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get("maulid_session")?.value;
   if (!sessionToken) return null;
 
-  try {
-    const [userId, username] = Buffer.from(sessionToken, "base64").toString("utf-8").split(":");
-    if (!userId || !username) return null;
+  const verified = verifySessionToken(sessionToken);
+  if (!verified) return null;
 
-    const db = getDb();
-    const user = db.prepare("SELECT id, username, nama, role FROM admin_users WHERE id = ? AND username = ?").get(userId, username) as SessionUser | undefined;
-    return user || null;
+  try {
+    let user: SessionUser | null = null;
+    try {
+      user = await queryOne<SessionUser>(
+        `SELECT u.id, u.username, u.nama, u.role, u.seksi_id, u.status, p.jabatan as jabatan
+         FROM admin_users u
+         LEFT JOIN panitia p ON p.user_id = u.id
+         WHERE u.id = ? AND u.username = ? AND (u.status = 'aktif' OR u.status IS NULL)`,
+        [verified.userId, verified.username]
+      );
+    } catch {
+      user = await queryOne<SessionUser>(
+        `SELECT id, username, nama, role, seksi_id, status FROM admin_users WHERE id = ? AND username = ? AND (status = 'aktif' OR status IS NULL)`,
+        [verified.userId, verified.username]
+      );
+    }
+    if (!user) return null;
+    if (user.role === "admin") {
+      user.role = "ketua_panitia";
+    }
+    return user;
   } catch {
     return null;
   }
 }
 
+export async function requireAuth(allowedRoles?: string[]): Promise<SessionUser> {
+  const session = await getSession();
+  if (!session) {
+    throw new Error("UNAUTHORIZED");
+  }
+  if (allowedRoles && allowedRoles.length > 0) {
+    const currentRole = session.role === "admin" ? "ketua_panitia" : session.role;
+    // ketua_panitia has full access
+    if (!allowedRoles.includes(currentRole) && currentRole !== "ketua_panitia") {
+      throw new Error("FORBIDDEN");
+    }
+  }
+  return session;
+}
+
 export async function createSession(user: SessionUser) {
-  const token = Buffer.from(`${user.id}:${user.username}`).toString("base64");
+  const token = createSessionToken(user);
   const cookieStore = await cookies();
   cookieStore.set("maulid_session", token, {
     httpOnly: true,

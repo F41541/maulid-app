@@ -1,25 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import {
   UserCheck,
   Plus,
   Search,
-  Filter,
   Printer,
   FileSpreadsheet,
-  Edit2,
-  Trash2,
   Crown,
   Star,
-  Sparkles,
-  Users,
   MapPin,
-  HelpCircle,
   CheckCircle,
   XCircle,
+  HelpCircle,
 } from "lucide-react";
+import { SpeedDialActions } from "@/components/shared/SpeedDialActions";
+import { TableActionGroup } from "@/components/shared/TableActionGroup";
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/ui/StatCard";
+import { Badge } from "@/components/ui/Badge";
+import { SkeletonTableRow } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import * as XLSX from "xlsx";
+import { useDebounce } from "@/lib/use-debounce";
+import { getTodayString } from "@/lib/format";
+import { useToast } from "@/lib/toast";
+import { useConfirm } from "@/lib/use-confirm";
+import { useAuth } from "@/lib/use-auth";
+import { TamuModal } from "./components/TamuModal";
 
 interface Tamu {
   id: string;
@@ -42,11 +53,18 @@ interface TamuStats {
 }
 
 export default function TamuPage() {
+  const toast = useToast();
+  const { confirm, confirmDialog } = useConfirm();
+  const { user: currentUser } = useAuth();
   const [tamuList, setTamuList] = useState<Tamu[]>([]);
   const [stats, setStats] = useState<TamuStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterKehadiran, setFilterKehadiran] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTamu, setEditingTamu] = useState<Tamu | null>(null);
@@ -60,25 +78,33 @@ export default function TamuPage() {
     catatan: "",
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
       if (filterStatus !== "all") params.append("status", filterStatus);
       if (filterKehadiran !== "all") params.append("kehadiran", filterKehadiran);
-      if (searchQuery.trim()) params.append("q", searchQuery.trim());
+      if (debouncedSearch.trim()) params.append("q", debouncedSearch.trim());
 
       const res = await fetch(`/api/tamu?${params.toString()}`);
+      if (!res.ok) throw new Error("Gagal memuat data tamu");
       const data = await res.json();
       setTamuList(data.tamu || []);
       setStats(data.stats || null);
-    } catch {
-      alert("Gagal memuat daftar tamu undangan");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Gagal memuat daftar tamu undangan";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [filterStatus, filterKehadiran, debouncedSearch, toast]);
 
   useEffect(() => {
     fetchData();
-  }, [filterStatus, filterKehadiran, searchQuery]);
+  }, [fetchData]);
 
   const openAdd = () => {
     setEditingTamu(null);
@@ -117,188 +143,166 @@ export default function TamuPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Gagal menyimpan data tamu");
+        toast.error(data.error || "Gagal menyimpan data tamu");
       } else {
+        toast.success(editingTamu ? "Data tamu diperbarui" : "Tamu undangan ditambahkan");
         setModalOpen(false);
         fetchData();
       }
     } catch {
-      alert("Terjadi kesalahan sistem");
+      toast.error("Terjadi kesalahan sistem");
     }
   };
 
   const handleQuickKehadiran = async (id: string, kehadiran: string) => {
     try {
-      await fetch("/api/tamu", {
+      const res = await fetch("/api/tamu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "update_kehadiran", id, kehadiran }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal mengubah kehadiran");
+        return;
+      }
+      toast.success(`Status kehadiran diubah ke "${kehadiran}"`);
       fetchData();
     } catch {
-      alert("Gagal mengubah kehadiran");
+      toast.error("Gagal mengubah kehadiran");
     }
   };
 
   const handleDelete = async (id: string, nama: string) => {
-    if (!confirm(`Hapus tamu undangan "${nama}"?`)) return;
+    const ok = await confirm({
+      title: "Hapus Tamu Undangan",
+      message: `Hapus tamu undangan "${nama}"?`,
+      variant: "danger",
+    });
+    if (!ok) return;
+
     try {
       const res = await fetch("/api/tamu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete", id }),
       });
-      fetchData();
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal menghapus tamu undangan");
+      } else {
+        toast.success("Tamu undangan berhasil dihapus");
+        fetchData();
+      }
     } catch {
-      alert("Terjadi kesalahan sistem");
+      toast.error("Terjadi kesalahan sistem");
     }
   };
 
-  const exportCSV = () => {
-    const headers = "ID,Nama Tamu,Status,Alamat,Tamu Dari / Pengundang,Kehadiran,Catatan\n";
-    const rows = tamuList
-      .map(
-        (t) =>
-          `"${t.id}","${t.nama.replace(/"/g, '""')}","${t.status}","${(t.alamat || "").replace(
-            /"/g,
-            '""'
-          )}","${(t.pengundang || "").replace(/"/g, '""')}","${t.kehadiran}","${(
-            t.catatan || ""
-          ).replace(/"/g, '""')}"`
-      )
-      .join("\n");
-    const blob = new Blob([headers + rows], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `daftar-tamu-undangan-maulid-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
+  const exportExcelLabel = () => {
+    const rows = tamuList.map((t) => [
+      t.nama,
+      "di",
+      t.alamat || "Tempat",
+    ]);
+
+    const worksheetData = [
+      ["Nama Tamu", "di", "Tempat"],
+      ...rows,
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Label Tamu");
+    XLSX.writeFile(wb, `label-tamu-undangan-${getTodayString()}.xlsx`);
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "VVIP":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
-            <Crown className="w-3 h-3 text-amber-700" /> VVIP
-          </span>
+          <Badge variant="amber" icon={<Crown className="w-3 h-3 text-amber-700 dark:text-amber-300" />}>
+            VVIP
+          </Badge>
         );
       case "VIP":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-900 border border-purple-200">
-            <Star className="w-3 h-3 text-purple-700" /> VIP
-          </span>
+          <Badge variant="purple" icon={<Star className="w-3 h-3 text-purple-700 dark:text-purple-300" />}>
+            VIP
+          </Badge>
         );
       case "Reguler":
       default:
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-            Reguler
-          </span>
-        );
+        return <Badge variant="default">Reguler</Badge>;
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar userName="Admin Panitia" />
+    <Navbar
+      userName={currentUser?.nama}
+      userRole={currentUser?.role}
+      userJabatan={currentUser?.jabatan}
+    >
+      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <UserCheck className="w-7 h-7 text-emerald-600" />
-              Daftar Tamu Undangan
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Data undangan kehormatan Maulid Nabi, klasifikasi VVIP/VIP, alamat, dan pihak pengundang.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 no-print">
-            <button
-              onClick={() => window.print()}
-              className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-xs transition"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              Cetak / PDF
-            </button>
-
-            <button
-              onClick={exportCSV}
-              className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-xs transition"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              Ekspor CSV
-            </button>
-
-            <button
-              onClick={openAdd}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              + Tambah Tamu Undangan
-            </button>
-          </div>
-        </div>
-
-        {/* Print Header */}
-        <div className="hidden print-only mb-6 text-center">
-          <h2 className="text-xl font-bold text-slate-900 uppercase">
-            DAFTAR TAMU UNDANGAN ACARA MAULID NABI MUHAMMAD SAW
-          </h2>
-          <p className="text-xs text-slate-600 mt-0.5">Peringatan Hari Besar Islam (PHBI)</p>
-        </div>
-
-        {/* Stats Summary Cards */}
+        {/* Stats Grid */}
         {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6 no-print">
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-medium text-slate-500 block">Total Undangan</span>
-              <span className="text-xl font-bold text-slate-800">{stats.total} orang</span>
-            </div>
-            <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200 shadow-2xs">
-              <span className="text-[11px] font-medium text-amber-800 block">VVIP</span>
-              <span className="text-xl font-bold text-amber-900">{stats.vvip || 0}</span>
-            </div>
-            <div className="bg-purple-50/70 p-3.5 rounded-xl border border-purple-200 shadow-2xs">
-              <span className="text-[11px] font-medium text-purple-800 block">VIP</span>
-              <span className="text-xl font-bold text-purple-900">{stats.vip || 0}</span>
-            </div>
-            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-medium text-slate-700 block">Reguler</span>
-              <span className="text-xl font-bold text-slate-800">{stats.reguler || 0}</span>
-            </div>
-            <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-200 shadow-2xs">
-              <span className="text-[11px] font-medium text-emerald-800 block">Konfirmasi Hadir</span>
-              <span className="text-xl font-bold text-emerald-900">{stats.hadir || 0}</span>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <StatCard
+              compact
+              title="Total Tamu"
+              value={stats.total}
+              icon={UserCheck}
+              iconColor="slate"
+            />
+            <StatCard
+              compact
+              title="Terkonfirmasi Hadir"
+              value={stats.hadir}
+              icon={CheckCircle}
+              iconColor="emerald"
+            />
+            <StatCard
+              compact
+              title="VVIP & VIP"
+              value={stats.vvip + stats.vip}
+              icon={Crown}
+              iconColor="amber"
+            />
+            <StatCard
+              compact
+              title="Belum Konfirmasi"
+              value={stats.belum_konfirmasi}
+              icon={HelpCircle}
+              iconColor="slate"
+            />
           </div>
         )}
 
         {/* Filter & Search Bar */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-6 flex flex-wrap items-center justify-between gap-4 no-print">
-          <div className="flex flex-wrap items-center gap-3 flex-1">
-            {/* Search Input */}
-            <div className="relative min-w-[240px]">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs mb-6 flex flex-wrap items-center justify-between gap-3 no-print w-full min-w-0">
+          <div className="flex flex-wrap items-center gap-3 flex-1 w-full sm:w-auto min-w-0">
+            {/* Search */}
+            <div className="relative flex-1 min-w-0 w-full sm:w-auto sm:min-w-[200px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari nama, alamat, pengundang..."
-                className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                placeholder="Cari nama tamu atau pihak pengundang..."
+                aria-label="Cari nama tamu atau pihak pengundang"
+                className="w-full pl-9 pr-3.5 py-2.5 min-h-[44px] text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
 
-            {/* Filter Status */}
+            {/* Filter Kategori Dropdown */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Status:</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Kategori:</span>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                aria-label="Filter Kategori Tamu"
+                className="text-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 min-h-[44px] bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="all">Semua Kategori</option>
                 <option value="VVIP">VVIP</option>
@@ -309,109 +313,131 @@ export default function TamuPage() {
 
             {/* Filter Kehadiran */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Kehadiran:</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Kehadiran:</span>
               <select
                 value={filterKehadiran}
                 onChange={(e) => setFilterKehadiran(e.target.value)}
-                className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                aria-label="Filter Kehadiran Tamu"
+                className="text-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 min-h-[44px] bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="all">Semua Status</option>
+                <option value="all">Semua Kehadiran</option>
                 <option value="Hadir">Hadir</option>
-                <option value="Belum Konfirmasi">Belum Konfirmasi</option>
                 <option value="Tidak Hadir">Tidak Hadir</option>
+                <option value="Belum Konfirmasi">Belum Konfirmasi</option>
               </select>
             </div>
           </div>
-
-          {(filterStatus !== "all" || filterKehadiran !== "all" || searchQuery) && (
-            <button
-              onClick={() => {
-                setFilterStatus("all");
-                setFilterKehadiran("all");
-                setSearchQuery("");
-              }}
-              className="text-xs text-rose-600 hover:underline"
-            >
-              Reset Filter
-            </button>
-          )}
         </div>
 
-        {/* Tabel Tamu Undangan */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+        {/* Tabel Tamu */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left border-collapse text-sm min-w-[640px]">
               <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  <th className="py-3 px-4">Nama Tamu Undangan</th>
-                  <th className="py-3 px-4">Kategori Status</th>
-                  <th className="py-3 px-4">Alamat / Instansi</th>
-                  <th className="py-3 px-4">Undangan Dari</th>
-                  <th className="py-3 px-4">Kehadiran</th>
-                  <th className="py-3 px-4">Catatan / Posisi Duduk</th>
-                  <th className="py-3 px-4 text-right no-print">Aksi</th>
+                <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">Nama Lengkap &amp; Status</th>
+                  <th className="py-3.5 px-4">Alamat / Instansi</th>
+                  <th className="py-3.5 px-4">Undangan Dari</th>
+                  <th className="py-3.5 px-4">Kehadiran</th>
+                  <th className="py-3.5 px-4">Catatan</th>
+                  <th className="py-3.5 px-4 text-right no-print">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {tamuList.length === 0 ? (
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <SkeletonTableRow key={idx} columns={6} />
+                  ))
+                ) : error ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
-                      Belum ada tamu undangan yang sesuai kriteria pencarian.
+                    <td colSpan={6} className="p-6">
+                      <ErrorState message={error} onRetry={fetchData} compact />
+                    </td>
+                  </tr>
+                ) : tamuList.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6">
+                      <EmptyState
+                        icon={UserCheck}
+                        title="Belum Ada Data Tamu"
+                        description={
+                          searchQuery || filterStatus !== "all" || filterKehadiran !== "all"
+                            ? "Tidak ada tamu undangan yang sesuai dengan kata kunci atau filter pencarian."
+                            : "Belum ada daftar tamu undangan kehormatan yang dicatat."
+                        }
+                        actionLabel="+ Tambah Tamu Baru"
+                        onAction={openAdd}
+                        secondaryActionLabel={
+                          searchQuery || filterStatus !== "all" || filterKehadiran !== "all"
+                            ? "Reset Filter"
+                            : undefined
+                        }
+                        onSecondaryAction={() => {
+                          setSearchQuery("");
+                          setFilterStatus("all");
+                          setFilterKehadiran("all");
+                        }}
+                      />
                     </td>
                   </tr>
                 ) : (
-                  tamuList.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50/50 transition">
-                      <td className="py-3 px-4 font-semibold text-slate-800">
-                        {t.nama}
+                  tamuList.map((t, idx) => (
+                    <tr
+                      key={t.id}
+                      style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
+                      className="animate-stagger-item hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition"
+                    >
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-900 dark:text-white">
+                            {t.nama}
+                          </span>
+                          {getStatusBadge(t.status)}
+                        </div>
                       </td>
-                      <td className="py-3 px-4">{getStatusBadge(t.status)}</td>
-                      <td className="py-3 px-4 text-slate-600 text-xs">
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 text-xs">
                         {t.alamat ? (
                           <span className="flex items-center gap-1">
                             <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
                             {t.alamat}
                           </span>
                         ) : (
-                          "-"
+                          <span className="text-slate-400 italic">-</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-slate-700 text-xs font-medium">
-                        {t.pengundang || "-"}
+                      <td className="py-3.5 px-4 text-xs text-slate-600 dark:text-slate-300">
+                        {t.pengundang || <span className="text-slate-400 italic">-</span>}
                       </td>
-                      <td className="py-3 px-4 text-xs">
+                      <td className="py-3.5 px-4">
                         <select
                           value={t.kehadiran}
                           onChange={(e) => handleQuickKehadiran(t.id, e.target.value)}
-                          className={`px-2 py-1 rounded-md text-xs font-semibold border focus:outline-none ${
+                          aria-label={`Ubah status kehadiran untuk ${t.nama}`}
+                          className={cn(
+                            "text-xs font-semibold border rounded-xl px-2.5 py-1.5 min-h-[36px] no-print cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors",
                             t.kehadiran === "Hadir"
-                              ? "bg-green-50 text-green-700 border-green-200"
+                              ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
                               : t.kehadiran === "Tidak Hadir"
-                              ? "bg-rose-50 text-rose-700 border-rose-200"
-                              : "bg-slate-100 text-slate-600 border-slate-200"
-                          }`}
+                              ? "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800"
+                              : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700"
+                          )}
                         >
-                          <option value="Belum Konfirmasi">Belum Konfirmasi</option>
                           <option value="Hadir">Hadir</option>
                           <option value="Tidak Hadir">Tidak Hadir</option>
+                          <option value="Belum Konfirmasi">Belum Konfirmasi</option>
                         </select>
+                        <span className="hidden print:inline text-xs font-semibold">{t.kehadiran}</span>
                       </td>
-                      <td className="py-3 px-4 text-slate-500 text-xs max-w-xs truncate">
+                      <td className="py-3.5 px-4 text-xs text-slate-500 dark:text-slate-400 max-w-[200px] truncate">
                         {t.catatan || "-"}
                       </td>
-                      <td className="py-3 px-4 text-right space-x-1 no-print">
-                        <button
-                          onClick={() => openEdit(t)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(t.id, t.nama)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <td className="py-3.5 px-4 text-right no-print">
+                        <TableActionGroup
+                          onEdit={() => openEdit(t)}
+                          onDelete={() => handleDelete(t.id, t.nama)}
+                          editTooltip="Edit data tamu"
+                          deleteTooltip="Hapus data tamu"
+                        />
                       </td>
                     </tr>
                   ))
@@ -421,121 +447,42 @@ export default function TamuPage() {
           </div>
         </div>
 
-        {/* MODAL TAMBAH / EDIT TAMU */}
-        {modalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 no-print">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">
-                {editingTamu ? "Edit Data Tamu Undangan" : "Tambah Tamu Undangan"}
-              </h3>
+        {/* Floating Speed Dial Actions di Kanan Bawah */}
+        <SpeedDialActions
+          triggerLabel="Aksi Tamu"
+          actions={[
+            {
+              label: "Cetak / PDF",
+              icon: Printer,
+              variant: "secondary",
+              onClick: () => window.print(),
+            },
+            {
+              label: "Ekspor Label (.xlsx)",
+              icon: FileSpreadsheet,
+              variant: "outline",
+              onClick: exportExcelLabel,
+            },
+            {
+              label: "+ Tambah Tamu",
+              icon: Plus,
+              variant: "primary",
+              onClick: openAdd,
+            },
+          ]}
+        />
 
-              <form onSubmit={handleSave} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Nama Lengkap Tamu / Instansi *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={form.nama}
-                    onChange={(e) => setForm({ ...form, nama: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Habib Jindan bin Novel / Camat Caringin"
-                  />
-                </div>
+        <TamuModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSubmit={handleSave}
+          isEdit={Boolean(editingTamu)}
+          form={form}
+          setForm={setForm}
+        />
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Status / Kategori *
-                    </label>
-                    <select
-                      required
-                      value={form.status}
-                      onChange={(e) => setForm({ ...form, status: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    >
-                      <option value="VIP">VIP (Default)</option>
-                      <option value="VVIP">VVIP</option>
-                      <option value="Reguler">Reguler</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Undangan Dari Siapa
-                    </label>
-                    <input
-                      type="text"
-                      value={form.pengundang}
-                      onChange={(e) => setForm({ ...form, pengundang: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      placeholder="Contoh: Ketua Panitia / Humas"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Alamat / Domisili / Lembaga
-                  </label>
-                  <input
-                    type="text"
-                    value={form.alamat}
-                    onChange={(e) => setForm({ ...form, alamat: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: RT 03 / Ponpes Darul Ulum"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Konfirmasi Kehadiran
-                  </label>
-                  <select
-                    value={form.kehadiran}
-                    onChange={(e) => setForm({ ...form, kehadiran: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="Hadir">Hadir (Default)</option>
-                    <option value="Belum Konfirmasi">Belum Konfirmasi</option>
-                    <option value="Tidak Hadir">Tidak Hadir</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Catatan Khusus (Kursi Depan, Sambutan, dll)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={form.catatan}
-                    onChange={(e) => setForm({ ...form, catatan: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Disediakan karpet VVIP baris depan"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-                  >
-                    Simpan Tamu
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {confirmDialog}
       </main>
-    </div>
+    </Navbar>
   );
 }

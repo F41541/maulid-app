@@ -1,19 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import {
   CalendarCheck,
   Plus,
-  ArrowUp,
-  ArrowDown,
-  Edit2,
-  Trash2,
   Printer,
   Clock,
   Mic,
-  FileText,
+  CheckCircle2,
 } from "lucide-react";
+import { SpeedDialActions } from "@/components/shared/SpeedDialActions";
+import { TableActionGroup } from "@/components/shared/TableActionGroup";
+import { Button } from "@/components/ui/Button";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { useToast } from "@/lib/toast";
+import { useConfirm } from "@/lib/use-confirm";
+import { useAuth } from "@/lib/use-auth";
+import { isKetuaRole } from "@/lib/role-utils";
+import { formatTanggal, getTodayString } from "@/lib/format";
+import { RundownModal } from "./components/RundownModal";
 
 interface RundownItem {
   id: string;
@@ -26,39 +34,49 @@ interface RundownItem {
 }
 
 export default function RundownPage() {
+  const toast = useToast();
+  const { confirm, confirmDialog } = useConfirm();
+  const { user: currentUser } = useAuth();
   const [items, setItems] = useState<RundownItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<RundownItem | null>(null);
 
   const [form, setForm] = useState({
-    hari: "Hari H",
+    hari: getTodayString(),
     waktu: "",
     nama_kegiatan: "",
     nama_pengisi: "",
     catatan: "",
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/rundown");
+      if (!res.ok) throw new Error("Gagal mengambil data susunan acara.");
       const data = await res.json();
       setItems(data.rundown || []);
-    } catch {
-      alert("Gagal memuat susunan acara");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal memuat susunan acara";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const openAdd = () => {
     setEditingItem(null);
     setForm({
-      hari: "Hari H",
+      hari: getTodayString(),
       waktu: "",
       nama_kegiatan: "",
       nama_pengisi: "",
@@ -70,7 +88,7 @@ export default function RundownPage() {
   const openEdit = (item: RundownItem) => {
     setEditingItem(item);
     setForm({
-      hari: item.hari || "Hari H",
+      hari: /^\d{4}-\d{2}-\d{2}$/.test(item.hari || "") ? item.hari : getTodayString(),
       waktu: item.waktu,
       nama_kegiatan: item.nama_kegiatan,
       nama_pengisi: item.nama_pengisi || "",
@@ -90,18 +108,27 @@ export default function RundownPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Gagal menyimpan kegiatan");
+        toast.error(data.error || "Gagal menyimpan kegiatan");
       } else {
+        toast.success(
+          editingItem ? "Kegiatan berhasil diperbarui" : "Kegiatan berhasil ditambahkan"
+        );
         setModalOpen(false);
         fetchData();
       }
     } catch {
-      alert("Terjadi kesalahan sistem");
+      toast.error("Terjadi kesalahan sistem");
     }
   };
 
   const handleDelete = async (id: string, nama: string) => {
-    if (!confirm(`Hapus kegiatan "${nama}"?`)) return;
+    const ok = await confirm({
+      title: "Hapus Susunan Acara",
+      message: `Hapus kegiatan "${nama}"?`,
+      variant: "danger",
+    });
+    if (!ok) return;
+
     try {
       const res = await fetch("/api/rundown", {
         method: "POST",
@@ -110,77 +137,63 @@ export default function RundownPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Gagal menghapus kegiatan");
+        toast.error(data.error || "Gagal menghapus kegiatan");
       } else {
+        toast.success("Kegiatan berhasil dihapus");
         fetchData();
       }
     } catch {
-      alert("Terjadi kesalahan sistem");
+      toast.error("Terjadi kesalahan sistem");
     }
   };
 
-  const handleMove = async (index: number, direction: "up" | "down") => {
-    if (direction === "up" && index === 0) return;
-    if (direction === "down" && index === items.length - 1) return;
+  const canEditRundown = Boolean(
+    currentUser &&
+      (isKetuaRole(currentUser.role, currentUser.jabatan) ||
+        currentUser.role === "sekretaris")
+  );
 
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    const newItems = [...items];
-    const temp = newItems[index];
-    newItems[index] = newItems[targetIndex];
-    newItems[targetIndex] = temp;
+  const sortedItems = useMemo(() => {
+    const now = new Date();
+    const nowTime = now.getTime();
 
-    const payload = newItems.map((item, idx) => ({
-      id: item.id,
-      urutan: idx + 1,
-    }));
+    const mapped = items.map((item) => {
+      const timeMatch = item.waktu.match(/(\d{1,2})[:.](\d{2})/);
+      let hours = 0;
+      let minutes = 0;
+      if (timeMatch) {
+        hours = parseInt(timeMatch[1], 10);
+        minutes = parseInt(timeMatch[2], 10);
+      }
+      let d = new Date(now);
+      if (item.hari && /^\d{4}-\d{2}-\d{2}$/.test(item.hari)) {
+        const [y, m, day] = item.hari.split("-").map(Number);
+        d = new Date(y, m - 1, day);
+      }
+      d.setHours(hours, minutes, 0, 0);
+      const ts = d.getTime();
+      const isPast = ts < nowTime;
+      return { ...item, timestamp: ts, isPast };
+    });
 
-    setItems(newItems);
+    // Urutkan dinamis: yang belum lewat (terdekat dari sekarang) di atas, yang sudah lewat di bawah
+    const upcoming = mapped
+      .filter((it) => !it.isPast)
+      .sort((a, b) => a.timestamp - b.timestamp);
+    const past = mapped
+      .filter((it) => it.isPast)
+      .sort((a, b) => a.timestamp - b.timestamp);
 
-    try {
-      await fetch("/api/rundown", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reorder", items: payload }),
-      });
-    } catch {
-      fetchData();
-    }
-  };
+    return [...upcoming, ...past];
+  }, [items]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar userName="Admin Panitia" />
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <CalendarCheck className="w-7 h-7 text-emerald-600" />
-              Susunan Acara (Rundown)
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Jadwal pelaksanaan Maulid Nabi Muhammad SAW dengan fleksibilitas input dan pengurutan.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 no-print">
-            <button
-              onClick={() => window.print()}
-              className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-xs transition"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              Cetak / Ekspor PDF
-            </button>
-            <button
-              onClick={openAdd}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              + Tambah Rangkaian Acara
-            </button>
-          </div>
-        </div>
+    <Navbar
+      userName={currentUser?.nama}
+      userRole={currentUser?.role}
+      userJabatan={currentUser?.jabatan}
+    >
+      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
 
         {/* Print Header */}
         <div className="hidden print-only mb-6 text-center">
@@ -190,202 +203,141 @@ export default function RundownPage() {
           <p className="text-xs text-slate-600">Panduan Tertib Pelaksanaan Acara</p>
         </div>
 
-        {/* Rundown List Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="divide-y divide-slate-100">
-            {items.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm">
-                Belum ada susunan acara yang dicatat. Klik tombol Tambah di atas.
-              </div>
-            ) : (
-              items.map((item, index) => (
+        {/* 5-State Resilience Handling */}
+        {loading ? (
+          <div className="space-y-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <SkeletonCard key={idx} />
+            ))}
+          </div>
+        ) : error ? (
+          <ErrorState message={error} onRetry={fetchData} className="my-6" />
+        ) : sortedItems.length === 0 ? (
+          <EmptyState
+            icon={CalendarCheck}
+            title="Belum Ada Susunan Acara"
+            description="Belum ada agenda atau susunan kegiatan yang dijadwalkan untuk acara ini."
+            actionLabel={canEditRundown ? "+ Tambah Rangkaian Acara" : undefined}
+            onAction={canEditRundown ? openAdd : undefined}
+          />
+        ) : (
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {sortedItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition group"
+                  style={{ animationDelay: `${Math.min(index * 35, 350)}ms` }}
+                  className={`animate-stagger-item p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition group relative ${
+                    item.isPast
+                      ? "opacity-50 dark:opacity-40 grayscale bg-slate-50/40 dark:bg-slate-900/30"
+                      : "hover:bg-slate-50/60 dark:hover:bg-slate-800/50"
+                  }`}
                 >
-                  <div className="flex items-start gap-4">
-                    {/* Urutan badge & Move buttons */}
-                    <div className="flex flex-col items-center justify-center">
-                      <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center shadow-xs">
+                  {/* Garis penyambung vertikal timeline ke urutan berikutnya (ada jeda/jangan nempel) */}
+                  {index < sortedItems.length - 1 && (
+                    <div
+                      aria-hidden="true"
+                      className="absolute left-[29px] sm:left-[33px] top-[52px] sm:top-[56px] -bottom-2 sm:-bottom-3 w-0.5 bg-slate-200 dark:bg-slate-700 rounded-full pointer-events-none z-0"
+                    />
+                  )}
+
+                  <div className="flex items-start gap-4 z-10">
+                    {/* Urutan badge tanpa tombol atas-bawah */}
+                    <div className="flex flex-col items-center justify-center shrink-0">
+                      <span className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center justify-center shadow-2xs border border-emerald-200 dark:border-emerald-800">
                         {index + 1}
                       </span>
-                      <div className="flex flex-col gap-0.5 mt-1 no-print">
-                        <button
-                          disabled={index === 0}
-                          onClick={() => handleMove(index, "up")}
-                          className="p-0.5 text-slate-400 hover:text-emerald-600 disabled:opacity-20"
-                          title="Naikkan Urutan"
-                        >
-                          <ArrowUp className="w-3 h-3" />
-                        </button>
-                        <button
-                          disabled={index === items.length - 1}
-                          onClick={() => handleMove(index, "down")}
-                          className="p-0.5 text-slate-400 hover:text-emerald-600 disabled:opacity-20"
-                          title="Turunkan Urutan"
-                        >
-                          <ArrowDown className="w-3 h-3" />
-                        </button>
-                      </div>
                     </div>
 
-                    {/* Main content */}
                     <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {item.hari && (
-                          <span className="text-xs font-semibold text-purple-800 bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-md">
-                            {item.hari}
-                          </span>
-                        )}
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
-                          <Clock className="w-3 h-3" />
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                          {item.hari ? formatTanggal(item.hari) : "Hari H"}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          <Clock className="w-3 h-3 text-slate-400" />
                           {item.waktu}
                         </span>
-                        <h3 className="font-bold text-slate-800 text-base">{item.nama_kegiatan}</h3>
+                        {item.isPast && (
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                            Selesai / Lewat
+                          </span>
+                        )}
                       </div>
 
+                      <h3
+                        className={`font-bold text-base ${
+                          item.isPast
+                            ? "line-through text-slate-500 dark:text-slate-400"
+                            : "text-slate-900 dark:text-white"
+                        }`}
+                      >
+                        {item.nama_kegiatan}
+                      </h3>
+
                       {item.nama_pengisi && (
-                        <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-700">
-                          <Mic className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="font-medium text-slate-600">Pengisi / Petugas:</span>
-                          <span className="font-semibold text-slate-900">{item.nama_pengisi}</span>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 mt-1 font-medium">
+                          <Mic className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Oleh: {item.nama_pengisi}</span>
                         </div>
                       )}
 
                       {item.catatan && (
-                        <p className="mt-1 text-xs text-slate-500 flex items-start gap-1">
-                          <span className="text-slate-400">Catatan:</span> {item.catatan}
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800 italic">
+                          Catatan: {item.catatan}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 self-end sm:self-center no-print">
-                    <button
-                      onClick={() => openEdit(item)}
-                      className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id, item.nama_kegiatan)}
-                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Modal Rundown */}
-        {modalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 no-print">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">
-                {editingItem ? "Edit Rangkaian Acara" : "Tambah Acara Baru"}
-              </h3>
-
-              <form onSubmit={handleSave} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Hari / Tanggal Acara *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      list="hari-acara-options"
-                      value={form.hari}
-                      onChange={(e) => setForm({ ...form, hari: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      placeholder="Contoh: Hari H / H-1 / Sabtu"
+                  {canEditRundown && (
+                    <TableActionGroup
+                      onEdit={() => openEdit(item)}
+                      onDelete={() => handleDelete(item.id, item.nama_kegiatan)}
+                      editTooltip="Edit kegiatan"
+                      deleteTooltip="Hapus kegiatan"
                     />
-                    <datalist id="hari-acara-options">
-                      <option value="Hari H" />
-                      <option value="H-1 (Persiapan)" />
-                      <option value="H-2" />
-                      <option value="Hari H (Pagi)" />
-                      <option value="Hari H (Malam)" />
-                    </datalist>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Waktu / Jam Pelaksanaan *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={form.waktu}
-                      onChange={(e) => setForm({ ...form, waktu: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      placeholder="Contoh: 19:30 - 20:00 WIB"
-                    />
-                  </div>
+                  )}
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Nama Kegiatan / Agenda *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={form.nama_kegiatan}
-                    onChange={(e) => setForm({ ...form, nama_kegiatan: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Pembacaan Tausiyah & Hikmah Maulid"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Nama Pengisi Acara (Penceramah / Qori / Hadroh dll)
-                  </label>
-                  <input
-                    type="text"
-                    value={form.nama_pengisi}
-                    onChange={(e) => setForm({ ...form, nama_pengisi: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Habib Umar bin Yahya"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan</label>
-                  <textarea
-                    rows={2}
-                    value={form.catatan}
-                    onChange={(e) => setForm({ ...form, catatan: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Siapkan air minum dan mik wireless di podium"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-                  >
-                    Simpan Kegiatan
-                  </button>
-                </div>
-              </form>
+              ))}
             </div>
           </div>
         )}
+
+        {/* Floating Speed Dial Actions di Kanan Bawah */}
+        <SpeedDialActions
+          triggerLabel="Aksi Rundown"
+          actions={[
+            {
+              label: "Cetak / PDF",
+              icon: Printer,
+              variant: "secondary",
+              onClick: () => window.print(),
+            },
+            ...(canEditRundown
+              ? [
+                  {
+                    label: "Tambah Rangkaian Acara",
+                    icon: Plus,
+                    variant: "primary" as const,
+                    onClick: openAdd,
+                  },
+                ]
+              : []),
+          ]}
+        />
+
+        <RundownModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSubmit={handleSave}
+          isEdit={Boolean(editingItem)}
+          form={form}
+          setForm={setForm}
+        />
+
+        {confirmDialog}
       </main>
-    </div>
+    </Navbar>
   );
 }

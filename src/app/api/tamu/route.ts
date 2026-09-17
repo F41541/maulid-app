@@ -1,36 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { query, queryOne, execute } from "@/lib/db";
 import { randomUUID } from "node:crypto";
+
+import { requireAuth, ROLES } from "@/lib/auth";
 
 const ALLOWED_STATUS = ["VVIP", "VIP", "Reguler"] as const;
 const ALLOWED_KEHADIRAN = ["Hadir", "Tidak Hadir", "Belum Konfirmasi"] as const;
 
 export async function GET(req: NextRequest) {
   try {
-    const db = getDb();
+    await requireAuth([ROLES.KETUA_PANITIA, ROLES.WAKIL_KETUA, ROLES.SEKRETARIS]);
     const status = req.nextUrl.searchParams.get("status");
     const kehadiran = req.nextUrl.searchParams.get("kehadiran");
     const q = req.nextUrl.searchParams.get("q");
 
-    let query = "SELECT * FROM tamu WHERE 1=1";
-    const params: string[] = [];
+    let sql = "SELECT * FROM tamu WHERE 1=1";
+    const params: unknown[] = [];
 
     if (status && status !== "all") {
-      query += " AND status = ?";
+      sql += " AND status = ?";
       params.push(status);
     }
 
     if (kehadiran && kehadiran !== "all") {
-      query += " AND kehadiran = ?";
+      sql += " AND kehadiran = ?";
       params.push(kehadiran);
     }
 
     if (q) {
-      query += " AND (nama LIKE ? OR alamat LIKE ? OR pengundang LIKE ?)";
+      sql += " AND (nama LIKE ? OR alamat LIKE ? OR pengundang LIKE ?)";
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
 
-    query += `
+    sql += `
       ORDER BY 
         CASE 
           WHEN status = 'VVIP' THEN 1
@@ -40,10 +42,10 @@ export async function GET(req: NextRequest) {
         END, nama ASC
     `;
 
-    const tamuList = db.prepare(query).all(...params);
+    const tamuList = await query(sql, params);
 
     // Statistik tamu
-    const stats = db.prepare(`
+    const stats = await queryOne(`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN status = 'VVIP' THEN 1 ELSE 0 END) as vvip,
@@ -53,18 +55,24 @@ export async function GET(req: NextRequest) {
         SUM(CASE WHEN kehadiran = 'Tidak Hadir' THEN 1 ELSE 0 END) as tidak_hadir,
         SUM(CASE WHEN kehadiran = 'Belum Konfirmasi' THEN 1 ELSE 0 END) as belum_konfirmasi
       FROM tamu
-    `).get();
+    `);
 
     return NextResponse.json({ tamu: tamuList, stats });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (err instanceof Error && err.message === "UNAUTHORIZED") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (err instanceof Error && err.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Hanya Sekretaris, Ketua, atau Wakil yang dapat mengakses data tamu" }, { status: 403 });
+    }
+    console.error("[Tamu API] GET Error:", err);
+    return NextResponse.json({ error: "Terjadi kesalahan pada server" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const db = getDb();
+    await requireAuth([ROLES.KETUA_PANITIA, ROLES.WAKIL_KETUA, ROLES.SEKRETARIS]);
     const body = await req.json();
     const { action } = body;
 
@@ -91,16 +99,17 @@ export async function POST(req: NextRequest) {
       }
 
       const id = randomUUID();
-      db.prepare(
-        "INSERT INTO tamu (id, nama, alamat, status, pengundang, kehadiran, catatan) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      ).run(
-        id,
-        nama,
-        alamat || null,
-        finalStatus,
-        pengundang || null,
-        finalKehadiran,
-        catatan || null
+      await execute(
+        "INSERT INTO tamu (id, nama, alamat, status, pengundang, kehadiran, catatan) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+          id,
+          nama,
+          alamat || null,
+          finalStatus,
+          pengundang || null,
+          finalKehadiran,
+          catatan || null,
+        ]
       );
 
       return NextResponse.json({ success: true, id });
@@ -128,16 +137,17 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      db.prepare(
-        "UPDATE tamu SET nama = ?, alamat = ?, status = ?, pengundang = ?, kehadiran = ?, catatan = ? WHERE id = ?"
-      ).run(
-        nama,
-        alamat || null,
-        finalStatus,
-        pengundang || null,
-        finalKehadiran,
-        catatan || null,
-        id
+      await execute(
+        "UPDATE tamu SET nama = ?, alamat = ?, status = ?, pengundang = ?, kehadiran = ?, catatan = ? WHERE id = ?",
+        [
+          nama,
+          alamat || null,
+          finalStatus,
+          pengundang || null,
+          finalKehadiran,
+          catatan || null,
+          id,
+        ]
       );
 
       return NextResponse.json({ success: true });
@@ -156,7 +166,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      db.prepare("UPDATE tamu SET kehadiran = ? WHERE id = ?").run(kehadiran, id);
+      await execute("UPDATE tamu SET kehadiran = ? WHERE id = ?", [kehadiran, id]);
       return NextResponse.json({ success: true });
     }
 
@@ -164,13 +174,19 @@ export async function POST(req: NextRequest) {
       const { id } = body;
       if (!id) return NextResponse.json({ error: "ID tamu diperlukan" }, { status: 400 });
 
-      db.prepare("DELETE FROM tamu WHERE id = ?").run(id);
+      await execute("DELETE FROM tamu WHERE id = ?", [id]);
       return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: "Action tidak dikenal" }, { status: 400 });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (err instanceof Error && err.message === "UNAUTHORIZED") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (err instanceof Error && err.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Hanya Sekretaris, Ketua, atau Wakil yang dapat mengubah data tamu" }, { status: 403 });
+    }
+    console.error("[Tamu API] POST Error:", err);
+    return NextResponse.json({ error: "Terjadi kesalahan pada server" }, { status: 500 });
   }
 }

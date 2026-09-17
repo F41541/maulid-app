@@ -1,0 +1,49 @@
+{
+  "version": "1.6.0",
+  "skill": "project-health-diagnostics",
+  "scannedAt": "2026-09-16T14:09:13.784Z",
+  "project": "Maulid App",
+  "tai": {
+    "score": 95,
+    "grade": "Excellent",
+    "description": "Production-ready, autonomous AI-safe",
+    "breakdown": {
+      "tokenCoverage": 100,
+      "wcagScore": 92,
+      "resilienceCoverage": 90,
+      "responsiveScore": 92
+    }
+  },
+  "drift": {
+    "estimatedRate": 0,
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "note": "Run agentway audit:drift for exact violation counts"
+  },
+  "prescription": [
+    {
+      "skill": "ux-chaos-monkey",
+      "priority": "P2",
+      "reason": "Stress-test the UI with edge-case data, text explosion, and network failures.",
+      "taiImpact": "Quality gate"
+    },
+    {
+      "skill": "cognitive-load-heatmap-prediction",
+      "priority": "P2",
+      "reason": "Validate visual attention flow and CTA hierarchy before launch.",
+      "taiImpact": "UX quality"
+    }
+  ],
+  "ciIntegration": {
+    "command": "agentway doctor ./ --json > health-report.json",
+    "thresholds": {
+      "excellent": 90,
+      "good": 70,
+      "needsWork": 50,
+      "critical": 0
+    },
+    "recommendation": "PASS: TAI score within acceptable range"
+  }
+}

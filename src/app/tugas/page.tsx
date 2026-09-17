@@ -1,20 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import {
   CheckSquare,
   Plus,
-  Filter,
   Clock,
   User,
-  FolderTree,
-  AlertCircle,
-  CheckCircle2,
-  Hourglass,
-  Edit2,
-  Trash2,
+  Image as ImageIcon,
+  Users,
 } from "lucide-react";
+import { SpeedDialActions } from "@/components/shared/SpeedDialActions";
+import { TableActionGroup } from "@/components/shared/TableActionGroup";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { formatTanggal } from "@/lib/format";
+import { useToast } from "@/lib/toast";
+import { useConfirm } from "@/lib/use-confirm";
+import { useAuth } from "@/lib/use-auth";
+import { isKetuaRole } from "@/lib/role-utils";
+import { TugasModal, type TugasFormData } from "./components/TugasModal";
 
 interface TugasItem {
   id: string;
@@ -27,6 +35,9 @@ interface TugasItem {
   pj_id: string | null;
   pj_nama: string | null;
   pj_hp: string | null;
+  foto_dokumentasi?: string | null;
+  target_role?: string | null;
+  is_umum?: number | null;
 }
 
 interface SeksiOption {
@@ -38,6 +49,7 @@ interface PanitiaOption {
   id: string;
   nama: string;
   jabatan: string;
+  seksi_id?: string | null;
 }
 
 interface ProgressStat {
@@ -50,56 +62,112 @@ interface ProgressStat {
 }
 
 export default function TugasPage() {
+  const toast = useToast();
+  const { confirm, confirmDialog } = useConfirm();
+  const { user: currentUser } = useAuth();
   const [tugasList, setTugasList] = useState<TugasItem[]>([]);
   const [seksiList, setSeksiList] = useState<SeksiOption[]>([]);
   const [panitiaList, setPanitiaList] = useState<PanitiaOption[]>([]);
   const [progressStats, setProgressStats] = useState<ProgressStat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [filterSeksi, setFilterSeksi] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTugas, setEditingTugas] = useState<TugasItem | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<TugasFormData>({
     seksi_id: "",
     nama_tugas: "",
     deskripsi: "",
-    status: "Belum Mulai" as "Belum Mulai" | "Proses" | "Selesai",
+    status: "Belum Mulai",
     deadline: "",
     pj_id: "",
+    foto_dokumentasi: "",
+    is_umum: 0,
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
-      if (filterSeksi) params.append("seksi_id", filterSeksi);
-      if (filterStatus) params.append("status", filterStatus);
+      if (filterSeksi && filterSeksi !== "all") params.append("seksi_id", filterSeksi);
+      if (filterStatus && filterStatus !== "all") params.append("status", filterStatus);
 
       const res = await fetch(`/api/tugas?${params.toString()}`);
+      if (!res.ok) throw new Error("Gagal memuat daftar tugas");
       const data = await res.json();
       setTugasList(data.tugas || []);
       setSeksiList(data.seksi || []);
       setPanitiaList(data.panitia || []);
       setProgressStats(data.progressStats || []);
-    } catch {
-      alert("Gagal memuat tugas");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal memuat tugas";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [filterSeksi, filterStatus, toast]);
 
   useEffect(() => {
     fetchData();
-  }, [filterSeksi, filterStatus]);
+  }, [fetchData]);
+
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/tugas/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal mengunggah foto");
+      } else {
+        setForm((prev) => ({ ...prev, foto_dokumentasi: data.url }));
+        toast.success("Foto dokumentasi berhasil diunggah");
+      }
+    } catch {
+      toast.error("Terjadi kesalahan saat mengunggah foto");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const isKetua = isKetuaRole(currentUser?.role, currentUser?.jabatan);
+  const canCreateUmum = isKetua || currentUser?.role === "sekretaris" || currentUser?.role === "wakil_ketua";
+
+  const matchingPanitia = panitiaList.find(
+    (p) =>
+      (currentUser?.id && p.id === currentUser.id) ||
+      (currentUser?.nama && p.nama.toLowerCase() === currentUser.nama.toLowerCase())
+  );
+
+  const userSeksiId = currentUser?.seksi_id || matchingPanitia?.seksi_id || (seksiList.length > 0 ? seksiList[0].id : "");
+  const userSeksiObj = seksiList.find((s) => s.id === userSeksiId);
+  const userSeksiName = userSeksiObj?.nama_seksi || currentUser?.jabatan || "";
+  const userPanitiaName = matchingPanitia?.nama || currentUser?.nama || "";
 
   const openAdd = () => {
     setEditingTugas(null);
     setForm({
-      seksi_id: seksiList[0]?.id || "",
+      seksi_id: isKetua ? (seksiList[0]?.id || "") : userSeksiId,
       nama_tugas: "",
       deskripsi: "",
       status: "Belum Mulai",
       deadline: "",
       pj_id: "",
+      foto_dokumentasi: "",
+      is_umum: 0,
     });
     setModalOpen(true);
   };
@@ -107,12 +175,14 @@ export default function TugasPage() {
   const openEdit = (tugas: TugasItem) => {
     setEditingTugas(tugas);
     setForm({
-      seksi_id: tugas.seksi_id,
+      seksi_id: tugas.seksi_id || "",
       nama_tugas: tugas.nama_tugas,
       deskripsi: tugas.deskripsi || "",
       status: tugas.status,
       deadline: tugas.deadline || "",
       pj_id: tugas.pj_id || "",
+      foto_dokumentasi: tugas.foto_dokumentasi || "",
+      is_umum: tugas.is_umum || 0,
     });
     setModalOpen(true);
   };
@@ -128,373 +198,395 @@ export default function TugasPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Gagal menyimpan tugas");
+        toast.error(data.error || "Gagal menyimpan tugas");
       } else {
+        toast.success(
+          editingTugas ? "Tugas berhasil diperbarui" : "Tugas baru berhasil ditambahkan"
+        );
         setModalOpen(false);
         fetchData();
       }
     } catch {
-      alert("Terjadi kesalahan sistem");
+      toast.error("Terjadi kesalahan sistem");
     }
   };
 
   const handleQuickStatusChange = async (id: string, newStatus: string) => {
     try {
-      await fetch("/api/tugas", {
+      const res = await fetch("/api/tugas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "update_status", id, status: newStatus }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal memperbarui status");
+        return;
+      }
+      toast.success(`Status tugas diubah ke "${newStatus}"`);
       fetchData();
     } catch {
-      alert("Gagal memperbarui status");
+      toast.error("Gagal memperbarui status");
     }
   };
 
   const handleDelete = async (id: string, nama: string) => {
-    if (!confirm(`Hapus tugas "${nama}"?`)) return;
+    const ok = await confirm({
+      title: "Hapus Tugas",
+      message: `Hapus tugas "${nama}"?`,
+      variant: "danger",
+    });
+    if (!ok) return;
+
     try {
       const res = await fetch("/api/tugas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete", id }),
       });
-      fetchData();
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal menghapus tugas");
+      } else {
+        toast.success("Tugas berhasil dihapus");
+        fetchData();
+      }
     } catch {
-      alert("Terjadi kesalahan");
+      toast.error("Terjadi kesalahan saat menghapus tugas");
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar userName="Admin Panitia" />
+  const umumTasks = tugasList.filter((t) => t.is_umum === 1);
+  const seksiTasks = tugasList.filter((t) => t.is_umum !== 1);
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <CheckSquare className="w-7 h-7 text-emerald-600" />
-              Manajemen Tugas per Seksi
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Pantau checklist persiapan, penanggung jawab tugas, dan deadline tiap seksi.
-            </p>
-          </div>
-
-          <button
-            onClick={openAdd}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            + Tambah Tugas
-          </button>
+  const renderTaskCard = (t: TugasItem, idx: number) => (
+    <div
+      key={t.id}
+      style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
+      className={`animate-stagger-item bg-white dark:bg-slate-900 rounded-3xl border ${
+        t.is_umum === 1
+          ? "border-indigo-200/80 dark:border-indigo-800/80 ring-1 ring-indigo-400/20 shadow-xs"
+          : "border-slate-200/80 dark:border-slate-800 shadow-xs"
+      } p-5 flex flex-col justify-between hover:shadow-md transition group`}
+    >
+      <div>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          {t.is_umum === 1 ? (
+            <span className="text-[10px] font-bold text-indigo-800 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
+              <Users className="w-3 h-3" />
+              Tugas Bersama (Semua Divisi)
+            </span>
+          ) : (
+            <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md uppercase tracking-wider">
+              {t.nama_seksi || "Seksi"}
+            </span>
+          )}
+          <TableActionGroup
+            onEdit={() => openEdit(t)}
+            onDelete={() => handleDelete(t.id, t.nama_tugas)}
+            editTooltip="Edit tugas"
+            deleteTooltip="Hapus tugas"
+          />
         </div>
 
-        {/* Progress Cards per Seksi */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {progressStats.map((stat) => {
-            const pct = stat.total > 0 ? Math.round((stat.selesai / stat.total) * 100) : 0;
-            return (
-              <div
-                key={stat.id}
-                className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-slate-800 text-sm truncate">{stat.nama_seksi}</h3>
-                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                    {pct}%
-                  </span>
-                </div>
+        <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug">
+          {t.nama_tugas}
+        </h3>
 
-                {/* Progress bar */}
-                <div className="w-full bg-slate-100 rounded-full h-2 mb-3 overflow-hidden">
-                  <div
-                    className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${pct}%` }}
-                  ></div>
-                </div>
+        {t.deskripsi && (
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed line-clamp-3">
+            {t.deskripsi}
+          </p>
+        )}
 
-                <div className="flex items-center justify-between text-[11px] text-slate-500">
-                  <span>{stat.selesai} Selesai</span>
-                  <span>{stat.proses} Proses</span>
-                  <span>{stat.belum_mulai} Belum</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Filter Controls */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-6 flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-            <Filter className="w-4 h-4 text-slate-400" />
-            Filter Data:
+        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
+          <div className="flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="truncate">PJ: {t.pj_nama || "Belum ditugaskan"}</span>
           </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">Seksi:</label>
-            <select
-              value={filterSeksi}
-              onChange={(e) => setFilterSeksi(e.target.value)}
-              className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-            >
-              <option value="">Semua Seksi</option>
-              {seksiList.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nama_seksi}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">Status:</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-            >
-              <option value="">Semua Status</option>
-              <option value="Belum Mulai">Belum Mulai</option>
-              <option value="Proses">Proses</option>
-              <option value="Selesai">Selesai</option>
-            </select>
-          </div>
-
-          {(filterSeksi || filterStatus) && (
+          {t.deadline && (
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>Deadline: {formatTanggal(t.deadline)}</span>
+            </div>
+          )}
+          {t.foto_dokumentasi && (
             <button
-              onClick={() => {
-                setFilterSeksi("");
-                setFilterStatus("");
-              }}
-              className="text-xs text-rose-600 hover:underline ml-auto"
+              type="button"
+              onClick={() => setPreviewImage(t.foto_dokumentasi || null)}
+              className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 hover:underline font-semibold pt-1 cursor-pointer"
             >
-              Reset Filter
+              <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>Lihat Bukti Foto</span>
             </button>
           )}
         </div>
+      </div>
 
-        {/* Task List */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="divide-y divide-slate-100">
-            {tugasList.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm">
-                Tidak ada tugas yang sesuai filter.
-              </div>
-            ) : (
-              tugasList.map((tugas) => (
+      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
+        <select
+          value={t.status}
+          onChange={(e) =>
+            handleQuickStatusChange(
+              t.id,
+              e.target.value as "Belum Mulai" | "Proses" | "Selesai"
+            )
+          }
+          aria-label={`Ubah status ${t.nama_tugas}`}
+          className={`text-xs font-semibold rounded-xl px-2.5 py-1.5 border min-h-[36px] transition-colors focus:outline-none focus:ring-2 cursor-pointer shadow-2xs ${
+            t.status === "Selesai"
+              ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800 focus:ring-emerald-500"
+              : t.status === "Proses"
+              ? "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800 focus:ring-amber-500"
+              : "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 focus:ring-slate-400"
+          }`}
+        >
+          <option value="Belum Mulai" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Belum Mulai</option>
+          <option value="Proses" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Sedang Proses</option>
+          <option value="Selesai" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Selesai</option>
+        </select>
+      </div>
+    </div>
+  );
+
+  return (
+    <Navbar
+      userName={currentUser?.nama}
+      userRole={currentUser?.role}
+      userJabatan={currentUser?.jabatan}
+    >
+      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
+        {/* Progress Grid per Seksi */}
+        {progressStats.length > 0 && (
+          <div className="flex flex-wrap gap-3 sm:gap-4 mb-6">
+            {progressStats.map((stat) => {
+              const pct = stat.total > 0 ? Math.round((stat.selesai / stat.total) * 100) : 0;
+              return (
                 <div
-                  key={tugas.id}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition"
+                  key={stat.id}
+                  className="w-full sm:flex-1 sm:min-w-[calc(50%-0.75rem)] lg:min-w-[calc(33.333%-1rem)] bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between"
                 >
-                  <div className="space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
-                        <FolderTree className="w-3 h-3" />
-                        {tugas.nama_seksi}
-                      </span>
-
-                      {/* Status Badges */}
-                      {tugas.status === "Selesai" && (
-                        <span className="text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          Selesai
-                        </span>
-                      )}
-                      {tugas.status === "Proses" && (
-                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                          <Hourglass className="w-3 h-3" />
-                          Proses
-                        </span>
-                      )}
-                      {tugas.status === "Belum Mulai" && (
-                        <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          Belum Mulai
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-                      {tugas.nama_tugas}
-                    </h3>
-
-                    {tugas.deskripsi && (
-                      <p className="text-xs text-slate-500 max-w-2xl">{tugas.deskripsi}</p>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-1">
-                      {tugas.pj_nama && (
-                        <span className="flex items-center gap-1">
-                          <User className="w-3.5 h-3.5 text-slate-400" />
-                          PJ: <strong className="text-slate-800">{tugas.pj_nama}</strong>
-                        </span>
-                      )}
-                      {tugas.deadline && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          Deadline: <strong className="text-slate-800">{tugas.deadline}</strong>
-                        </span>
-                      )}
-                    </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[150px]">
+                      {stat.nama_seksi}
+                    </span>
+                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      {pct}%
+                    </span>
                   </div>
-
-                  {/* Actions & quick status change */}
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    <select
-                      value={tugas.status}
-                      onChange={(e) => handleQuickStatusChange(tugas.id, e.target.value)}
-                      className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white text-slate-700"
-                    >
-                      <option value="Belum Mulai">Belum Mulai</option>
-                      <option value="Proses">Proses</option>
-                      <option value="Selesai">Selesai</option>
-                    </select>
-
-                    <button
-                      onClick={() => openEdit(tugas)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(tugas.id, tugas.nama_tugas)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-emerald-600 h-full rounded-full transition-all duration-300"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 text-[10px] text-slate-400 dark:text-slate-500 flex justify-between">
+                    <span>{stat.selesai} selesai</span>
+                    <span>{stat.total} total</span>
                   </div>
                 </div>
-              ))
-            )}
+              );
+            })}
+          </div>
+        )}
+
+        {/* Filter Bar */}
+        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs mb-6 flex flex-wrap items-center justify-between gap-3 no-print">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Seksi:</span>
+              <select
+                value={filterSeksi}
+                onChange={(e) => setFilterSeksi(e.target.value)}
+                aria-label="Filter seksi tugas"
+                className="text-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 min-h-[44px] bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="all">Semua Seksi</option>
+                {seksiList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nama_seksi}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Status:</span>
+              <select
+                value={filterStatus || "all"}
+                onChange={(e) => setFilterStatus(e.target.value === "all" ? "" : e.target.value)}
+                aria-label="Filter status tugas"
+                className="text-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 min-h-[44px] bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="all">Semua Status</option>
+                <option value="Belum Mulai">Belum Mulai</option>
+                <option value="Proses">Sedang Proses</option>
+                <option value="Selesai">Selesai</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Modal Tugas */}
-        {modalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">
-                {editingTugas ? "Edit Tugas Seksi" : "Tambah Tugas Baru"}
-              </h3>
-
-              <form onSubmit={handleSave} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Seksi Terkait *
-                  </label>
-                  <select
-                    required
-                    value={form.seksi_id}
-                    onChange={(e) => setForm({ ...form, seksi_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    {seksiList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nama_seksi}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Nama Tugas / Checklist *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={form.nama_tugas}
-                    onChange={(e) => setForm({ ...form, nama_tugas: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Pesan Sound System & Mic Wireless"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Deskripsi Tugas
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={form.deskripsi}
-                    onChange={(e) => setForm({ ...form, deskripsi: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Pastikan ada 4 mic aktif dan 2 stand mic"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
-                    <select
-                      value={form.status}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          status: e.target.value as "Belum Mulai" | "Proses" | "Selesai",
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    >
-                      <option value="Belum Mulai">Belum Mulai</option>
-                      <option value="Proses">Proses</option>
-                      <option value="Selesai">Selesai</option>
-                    </select>
+        {/* 5-State Resilience Handling for Tasks */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <SkeletonCard key={idx} />
+            ))}
+          </div>
+        ) : error ? (
+          <ErrorState message={error} onRetry={fetchData} className="my-6" />
+        ) : tugasList.length === 0 ? (
+          <EmptyState
+            icon={CheckSquare}
+            title="Belum Ada Tugas"
+            description={
+              filterSeksi || filterStatus
+                ? "Tidak ada tugas yang sesuai dengan kriteria filter yang dipilih."
+                : "Belum ada checklist tugas yang ditambahkan ke seksi kepanitiaan."
+            }
+            actionLabel="+ Tambah Tugas Baru"
+            onAction={openAdd}
+            secondaryActionLabel={
+              filterSeksi || filterStatus ? "Reset Filter" : undefined
+            }
+            onSecondaryAction={() => {
+              setFilterSeksi("");
+              setFilterStatus("");
+            }}
+          />
+        ) : (
+          <div className="space-y-8">
+            {/* Bagian Tugas Bersama (Seluruh Divisi) jika ada */}
+            {umumTasks.length > 0 && (
+              <section aria-labelledby="tugas-bersama-heading" className="space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-indigo-100 dark:border-indigo-900/40">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-xs">
+                      🌐
+                    </div>
+                    <div>
+                      <h2 id="tugas-bersama-heading" className="text-sm font-bold text-slate-900 dark:text-white">
+                        Tugas Bersama (Semua Divisi)
+                      </h2>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Checklist koordinasi lintas seksi yang berlaku untuk seluruh panitia
+                      </p>
+                    </div>
                   </div>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    {umumTasks.length} Tugas
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {umumTasks.map((t, idx) => renderTaskCard(t, idx))}
+                </div>
+              </section>
+            )}
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Target Deadline
-                    </label>
-                    <input
-                      type="date"
-                      value={form.deadline}
-                      onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    />
+            {/* Bagian Tugas Seksi / Divisi */}
+            <section aria-labelledby="tugas-seksi-heading" className="space-y-3">
+              {umumTasks.length > 0 && (
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-xs">
+                      📋
+                    </div>
+                    <div>
+                      <h2 id="tugas-seksi-heading" className="text-sm font-bold text-slate-900 dark:text-white">
+                        Tugas Khusus Seksi
+                      </h2>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Checklist tugas spesifik divisi operasional
+                      </p>
+                    </div>
                   </div>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    {seksiTasks.length} Tugas
+                  </span>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Penanggung Jawab (PJ Anggota)
-                  </label>
-                  <select
-                    value={form.pj_id}
-                    onChange={(e) => setForm({ ...form, pj_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="">-- Pilih Anggota Panitia (Opsional) --</option>
-                    {panitiaList.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nama} ({p.jabatan})
-                      </option>
-                    ))}
-                  </select>
+              )}
+              {seksiTasks.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                  Belum ada tugas khusus seksi yang ditambahkan.
                 </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-                  >
-                    Simpan Tugas
-                  </button>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {seksiTasks.map((t, idx) => renderTaskCard(t, idx))}
                 </div>
-              </form>
-            </div>
+              )}
+            </section>
           </div>
         )}
+
+        <TugasModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSubmit={handleSave}
+          isEdit={Boolean(editingTugas)}
+          isKetua={isKetua}
+          canCreateUmum={canCreateUmum}
+          userJabatanName={userSeksiName}
+          userPanitiaName={userPanitiaName}
+          form={form}
+          setForm={setForm}
+          seksiList={seksiList}
+          panitiaList={panitiaList}
+          uploading={uploading}
+          handleFileUpload={handleFileUpload}
+        />
+
+        {/* Modal Preview Foto */}
+        <Modal
+          isOpen={!!previewImage}
+          onClose={() => setPreviewImage(null)}
+          title="Dokumentasi / Bukti Tugas"
+        >
+          {previewImage && (
+            <div className="space-y-4">
+              <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-950/5 flex justify-center p-2">
+                <img
+                  src={previewImage}
+                  alt="Foto Dokumentasi"
+                  className="max-h-[65vh] object-contain rounded-xl"
+                />
+              </div>
+              <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <a
+                  href={previewImage}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold flex items-center gap-1"
+                >
+                  Buka Gambar Asli ↗
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImage(null)}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-semibold transition"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        {/* Floating Speed Dial Actions di Kanan Bawah */}
+        <SpeedDialActions
+          triggerLabel="Aksi Tugas"
+          actions={[
+            {
+              label: "Tambah Tugas",
+              icon: Plus,
+              variant: "primary",
+              onClick: openAdd,
+            },
+          ]}
+        />
+
+        {confirmDialog}
       </main>
-    </div>
+    </Navbar>
   );
 }

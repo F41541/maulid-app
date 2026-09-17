@@ -1,6 +1,7 @@
 {
   "name": "maulid-app",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,17 +12,19 @@
   "dependencies": {
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
-    "next": "15.2.1",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "tailwind-merge": "^3.0.2"
+    "mysql2": "^3.24.4",
+    "next": "^16.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwind-merge": "^3.0.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^7.0.2"
   }
 }

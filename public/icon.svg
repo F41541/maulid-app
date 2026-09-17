@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <rect width="128" height="128" rx="28" fill="#059669" />
+  <text
+    x="50%"
+    y="52%"
+    dominant-baseline="middle"
+    text-anchor="middle"
+    fill="#ffffff"
+    font-size="76"
+    font-weight="bold"
+    font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Naskh Arabic', 'Amiri', 'Traditional Arabic', Arial, sans-serif"
+  >ﷺ</text>
+</svg>

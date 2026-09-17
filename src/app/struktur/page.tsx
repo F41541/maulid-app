@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import {
   Users,
@@ -9,13 +10,23 @@ import {
   Table as TableIcon,
   Printer,
   Edit2,
-  Trash2,
-  Shield,
   UserCheck,
   FolderTree,
   Phone,
-  FileText,
+  UserPlus,
 } from "lucide-react";
+import { TableActionGroup } from "@/components/shared/TableActionGroup";
+import { SpeedDialActions } from "@/components/shared/SpeedDialActions";
+import { Button } from "@/components/ui/Button";
+import { SkeletonCard, SkeletonTableRow } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { useToast } from "@/lib/toast";
+import { useConfirm } from "@/lib/use-confirm";
+import { useAuth } from "@/lib/use-auth";
+import { PanitiaModal } from "./components/PanitiaModal";
+import { SeksiModal } from "./components/SeksiModal";
+import { BuatAkunModal } from "./components/BuatAkunModal";
 
 interface Panitia {
   id: string;
@@ -25,6 +36,8 @@ interface Panitia {
   nama_seksi?: string;
   no_hp: string | null;
   catatan: string | null;
+  user_id?: string | null;
+  user_username?: string | null;
 }
 
 interface Seksi {
@@ -39,10 +52,14 @@ interface Seksi {
 }
 
 export default function StrukturPage() {
+  const toast = useToast();
+  const { confirm, confirmDialog } = useConfirm();
+  const { user: currentUser } = useAuth();
   const [panitiaList, setPanitiaList] = useState<Panitia[]>([]);
   const [seksiList, setSeksiList] = useState<Seksi[]>([]);
-  const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
 
   // Modal Panitia
   const [modalPanitiaOpen, setModalPanitiaOpen] = useState(false);
@@ -63,24 +80,31 @@ export default function StrukturPage() {
     koordinator_id: "",
   });
 
-  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  // Modal Buat Akun
+  const [modalBuatAkunOpen, setModalBuatAkunOpen] = useState(false);
+  const [selectedPanitiaForAccount, setSelectedPanitiaForAccount] = useState<Panitia | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/struktur");
+      if (!res.ok) throw new Error("Gagal memuat data struktur organisasi");
       const data = await res.json();
       setPanitiaList(data.panitia || []);
       setSeksiList(data.seksi || []);
-    } catch {
-      setMessage({ text: "Gagal memuat data struktur", type: "error" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal memuat data struktur";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const openAddPanitia = () => {
     setEditingPanitia(null);
@@ -123,18 +147,27 @@ export default function StrukturPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Gagal menyimpan panitia");
+        toast.error(data.error || "Gagal menyimpan panitia");
       } else {
+        toast.success(
+          editingPanitia ? "Data panitia berhasil diperbarui" : "Panitia baru berhasil ditambahkan"
+        );
         setModalPanitiaOpen(false);
         fetchData();
       }
     } catch {
-      alert("Terjadi kesalahan sistem");
+      toast.error("Terjadi kesalahan sistem");
     }
   };
 
   const handleDeletePanitia = async (id: string, nama: string) => {
-    if (!confirm(`Yakin hapus panitia "${nama}"?`)) return;
+    const ok = await confirm({
+      title: "Hapus Panitia",
+      message: `Yakin hapus panitia "${nama}"?`,
+      variant: "danger",
+    });
+    if (!ok) return;
+
     try {
       const res = await fetch("/api/struktur", {
         method: "POST",
@@ -143,12 +176,13 @@ export default function StrukturPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Gagal menghapus panitia");
+        toast.error(data.error || "Gagal menghapus panitia");
       } else {
+        toast.success("Panitia berhasil dihapus");
         fetchData();
       }
     } catch {
-      alert("Terjadi kesalahan sistem");
+      toast.error("Terjadi kesalahan sistem saat menghapus panitia");
     }
   };
 
@@ -187,18 +221,27 @@ export default function StrukturPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Gagal menyimpan seksi");
+        toast.error(data.error || "Gagal menyimpan seksi");
       } else {
+        toast.success(
+          editingSeksi ? "Data seksi berhasil diperbarui" : "Seksi baru berhasil ditambahkan"
+        );
         setModalSeksiOpen(false);
         fetchData();
       }
     } catch {
-      alert("Terjadi kesalahan sistem");
+      toast.error("Terjadi kesalahan sistem");
     }
   };
 
   const handleDeleteSeksi = async (id: string, nama: string) => {
-    if (!confirm(`Yakin hapus seksi "${nama}"? Anggota akan dilepas dari seksi ini.`)) return;
+    const ok = await confirm({
+      title: "Hapus Seksi",
+      message: `Peringatan: Menghapus seksi "${nama}" akan menghapus seluruh tugas di seksi ini secara permanen, dan melepaskan anggota dari seksi ini. Lanjutkan?`,
+      variant: "danger",
+    });
+    if (!ok) return;
+
     try {
       const res = await fetch("/api/struktur", {
         method: "POST",
@@ -207,14 +250,17 @@ export default function StrukturPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Gagal menghapus seksi");
+        toast.error(data.error || "Gagal menghapus seksi");
       } else {
+        toast.success("Seksi berhasil dihapus");
         fetchData();
       }
     } catch {
-      alert("Terjadi kesalahan sistem");
+      toast.error("Terjadi kesalahan sistem saat menghapus seksi");
     }
   };
+
+  const isKetua = currentUser?.role === "ketua_panitia" || currentUser?.role === "admin";
 
   // Groupings for Org Chart
   const pelindung = panitiaList.filter((p) => p.jabatan === "Pelindung");
@@ -225,84 +271,75 @@ export default function StrukturPage() {
   const bendahara = panitiaList.filter((p) => p.jabatan === "Bendahara");
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar userName="Admin Panitia" />
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <Users className="w-7 h-7 text-emerald-600" />
-              Struktur Organisasi Panitia
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Kelola jabatan, pembagian seksi, dan penunjukan koordinator kepanitiaan.
-            </p>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex flex-wrap items-center gap-2 no-print">
-            <div className="bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-xs">
-              <button
-                onClick={() => setViewMode("chart")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                  viewMode === "chart"
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Network className="w-3.5 h-3.5" />
-                Bagan Visual
-              </button>
-              <button
-                onClick={() => setViewMode("table")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                  viewMode === "table"
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <TableIcon className="w-3.5 h-3.5" />
-                Tabel / Daftar
-              </button>
-            </div>
-
+    <Navbar
+      userName={currentUser?.nama}
+      userRole={currentUser?.role}
+      userJabatan={currentUser?.jabatan}
+    >
+      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
+        {/* Switch Modern Mode Tampilan: Bagan Visual / Tabel */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
+          <div className="inline-flex p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300/70 dark:border-slate-700 shadow-xs">
             <button
-              onClick={() => window.print()}
-              className="px-3 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-xs transition"
+              type="button"
+              role="tab"
+              aria-selected={viewMode === "chart"}
+              onClick={() => setViewMode("chart")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer min-h-[40px] ${
+                viewMode === "chart"
+                  ? "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
             >
-              <Printer className="w-3.5 h-3.5" />
-              Cetak / PDF
+              <Network className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Bagan Visual</span>
             </button>
-
             <button
-              onClick={openAddSeksi}
-              className="px-3.5 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-medium flex items-center gap-1.5 transition"
+              type="button"
+              role="tab"
+              aria-selected={viewMode === "table"}
+              onClick={() => setViewMode("table")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer min-h-[40px] ${
+                viewMode === "table"
+                  ? "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
             >
-              <FolderTree className="w-3.5 h-3.5" />
-              + Seksi Baru
-            </button>
-
-            <button
-              onClick={openAddPanitia}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              + Tambah Anggota
+              <TableIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Tabel / Daftar</span>
             </button>
           </div>
         </div>
 
-        {/* View Mode: Org Chart */}
-        {viewMode === "chart" && (
-          <div className="space-y-8 bg-white p-6 sm:p-10 rounded-2xl border border-slate-200 shadow-xs">
+        {/* 5-State Resilience Handling */}
+        {loading ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <SkeletonCard key={idx} />
+              ))}
+            </div>
+          </div>
+        ) : error ? (
+          <ErrorState message={error} onRetry={fetchData} className="my-6" />
+        ) : panitiaList.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="Belum Ada Anggota Panitia"
+            description="Susunan struktur kepanitiaan Maulid belum diisi. Tambahkan panitia pertama sekarang."
+            actionLabel="+ Tambah Anggota Panitia"
+            onAction={openAddPanitia}
+          />
+        ) : viewMode === "chart" ? (
+          <div className="space-y-8 bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs transition-colors w-full min-w-0">
             {/* Title for print */}
             <div className="text-center mb-6">
-              <h2 className="text-xl font-bold text-slate-900 uppercase tracking-wide">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white uppercase tracking-wide">
                 Bagan Struktur Panitia Maulid Nabi Muhammad SAW
               </h2>
-              <p className="text-xs text-slate-500 mt-1">Peringatan Hari Besar Islam (PHBI)</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Peringatan Hari Besar Islam (PHBI)
+              </p>
             </div>
 
             {/* Level 1: Pelindung & Penasihat */}
@@ -310,147 +347,185 @@ export default function StrukturPage() {
               {pelindung.map((p) => (
                 <div
                   key={p.id}
-                  className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 w-64 text-center shadow-xs relative group"
+                  className="bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-2xl p-4 w-full max-w-xs sm:w-64 text-center shadow-xs relative group"
                 >
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition no-print">
                     <button
+                      type="button"
                       onClick={() => openEditPanitia(p)}
-                      className="p-1 hover:bg-amber-200 rounded text-amber-800"
+                      className="p-1 hover:bg-amber-200 dark:hover:bg-amber-800 rounded text-amber-800 dark:text-amber-200"
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-200/60 dark:bg-amber-900/60 px-2 py-0.5 rounded-full">
                     Pelindung
                   </span>
-                  <h3 className="font-bold text-slate-900 text-sm mt-2">{p.nama}</h3>
-                  {p.catatan && <p className="text-xs text-slate-500 mt-0.5">{p.catatan}</p>}
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm mt-2">{p.nama}</h3>
+                  {p.catatan && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{p.catatan}</p>}
+                  {isKetua && p.user_id && (
+                    <div className="mt-2 pt-2 border-t border-amber-200/60 dark:border-amber-800/60">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-amber-900 dark:text-amber-200 bg-amber-200/50 dark:bg-amber-900/40 px-2 py-0.5 rounded-full font-medium">
+                        <UserCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        @{p.user_username}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
 
               {penasihat.map((p) => (
                 <div
                   key={p.id}
-                  className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 w-64 text-center shadow-xs relative group"
+                  className="bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-2xl p-4 w-full max-w-xs sm:w-64 text-center shadow-xs relative group"
                 >
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition no-print">
                     <button
+                      type="button"
                       onClick={() => openEditPanitia(p)}
-                      className="p-1 hover:bg-amber-200 rounded text-amber-800"
+                      className="p-1 hover:bg-amber-200 dark:hover:bg-amber-800 rounded text-amber-800 dark:text-amber-200"
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-200/60 dark:bg-amber-900/60 px-2 py-0.5 rounded-full">
                     Penasihat
                   </span>
-                  <h3 className="font-bold text-slate-900 text-sm mt-2">{p.nama}</h3>
-                  {p.catatan && <p className="text-xs text-slate-500 mt-0.5">{p.catatan}</p>}
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm mt-2">{p.nama}</h3>
+                  {p.catatan && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{p.catatan}</p>}
+                  {isKetua && p.user_id && (
+                    <div className="mt-2 pt-2 border-t border-amber-200/60 dark:border-amber-800/60">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-amber-900 dark:text-amber-200 bg-amber-200/50 dark:bg-amber-900/40 px-2 py-0.5 rounded-full font-medium">
+                        <UserCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        @{p.user_username}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
 
-            <div className="w-1 h-6 bg-slate-300 mx-auto"></div>
+            <div className="w-1 h-6 bg-slate-300 dark:bg-slate-700 mx-auto"></div>
 
             {/* Level 2: Ketua & Wakil */}
             <div className="flex flex-wrap justify-center gap-6">
               {ketua.map((p) => (
                 <div
                   key={p.id}
-                  className="bg-emerald-50 border-2 border-emerald-500 rounded-xl p-4 w-64 text-center shadow-sm relative group"
+                  className="bg-emerald-50 dark:bg-emerald-950/50 border-2 border-emerald-500 rounded-2xl p-4 w-full max-w-xs sm:w-64 text-center shadow-sm relative group"
                 >
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition no-print">
                     <button
+                      type="button"
                       onClick={() => openEditPanitia(p)}
-                      className="p-1 hover:bg-emerald-200 rounded text-emerald-800"
+                      className="p-1 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded text-emerald-800 dark:text-emerald-200"
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-200/70 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-200/70 dark:bg-emerald-900/70 px-2.5 py-0.5 rounded-full">
                     Ketua Panitia
                   </span>
-                  <h3 className="font-bold text-slate-900 text-base mt-2">{p.nama}</h3>
-                  {p.no_hp && <p className="text-xs text-slate-500 mt-0.5">{p.no_hp}</p>}
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base mt-2">{p.nama}</h3>
+                  {p.no_hp && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{p.no_hp}</p>}
+                  {isKetua && p.user_id && (
+                    <div className="mt-2 pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-900 dark:text-emerald-200 bg-emerald-200/60 dark:bg-emerald-900/60 px-2.5 py-0.5 rounded-full font-medium">
+                        <UserCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        @{p.user_username}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
 
               {wakil.map((p) => (
                 <div
                   key={p.id}
-                  className="bg-emerald-50 border-2 border-emerald-400 rounded-xl p-4 w-64 text-center shadow-sm relative group"
+                  className="bg-emerald-50 dark:bg-emerald-950/50 border-2 border-emerald-400 dark:border-emerald-600 rounded-2xl p-4 w-full max-w-xs sm:w-64 text-center shadow-sm relative group"
                 >
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition no-print">
                     <button
+                      type="button"
                       onClick={() => openEditPanitia(p)}
-                      className="p-1 hover:bg-emerald-200 rounded text-emerald-800"
+                      className="p-1 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded text-emerald-800 dark:text-emerald-200"
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-200/70 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-200/70 dark:bg-emerald-900/70 px-2.5 py-0.5 rounded-full">
                     Wakil Ketua
                   </span>
-                  <h3 className="font-bold text-slate-900 text-base mt-2">{p.nama}</h3>
-                  {p.no_hp && <p className="text-xs text-slate-500 mt-0.5">{p.no_hp}</p>}
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base mt-2">{p.nama}</h3>
+                  {p.no_hp && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{p.no_hp}</p>}
+                  {isKetua && p.user_id && (
+                    <div className="mt-2 pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-900 dark:text-emerald-200 bg-emerald-200/60 dark:bg-emerald-900/60 px-2.5 py-0.5 rounded-full font-medium">
+                        <UserCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        @{p.user_username}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
 
-            <div className="w-1 h-6 bg-slate-300 mx-auto"></div>
+            <div className="w-1 h-6 bg-slate-300 dark:bg-slate-700 mx-auto"></div>
 
             {/* Level 3: Sekretaris & Bendahara */}
             <div className="flex flex-wrap justify-center gap-6">
               {sekretaris.map((p) => (
                 <div
                   key={p.id}
-                  className="bg-blue-50 border border-blue-300 rounded-xl p-4 w-56 text-center shadow-xs relative group"
+                  className="bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-700 rounded-2xl p-4 w-full max-w-xs sm:w-56 text-center shadow-xs relative group"
                 >
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition no-print">
                     <button
+                      type="button"
                       onClick={() => openEditPanitia(p)}
-                      className="p-1 hover:bg-blue-200 rounded text-blue-800"
+                      className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded text-blue-800 dark:text-blue-200"
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 bg-blue-200/60 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300 bg-blue-200/60 dark:bg-blue-900/60 px-2 py-0.5 rounded-full">
                     Sekretaris
                   </span>
-                  <h3 className="font-bold text-slate-900 text-sm mt-2">{p.nama}</h3>
-                  {p.no_hp && <p className="text-xs text-slate-500 mt-0.5">{p.no_hp}</p>}
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm mt-2">{p.nama}</h3>
+                  {p.no_hp && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{p.no_hp}</p>}
                 </div>
               ))}
 
               {bendahara.map((p) => (
                 <div
                   key={p.id}
-                  className="bg-teal-50 border border-teal-300 rounded-xl p-4 w-56 text-center shadow-xs relative group"
+                  className="bg-teal-50 dark:bg-teal-950/40 border border-teal-300 dark:border-teal-700 rounded-2xl p-4 w-full max-w-xs sm:w-56 text-center shadow-xs relative group"
                 >
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition no-print">
                     <button
+                      type="button"
                       onClick={() => openEditPanitia(p)}
-                      className="p-1 hover:bg-teal-200 rounded text-teal-800"
+                      className="p-1 hover:bg-teal-200 dark:hover:bg-teal-800 rounded text-teal-800 dark:text-teal-200"
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-200/60 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300 bg-teal-200/60 dark:bg-teal-900/60 px-2 py-0.5 rounded-full">
                     Bendahara
                   </span>
-                  <h3 className="font-bold text-slate-900 text-sm mt-2">{p.nama}</h3>
-                  {p.no_hp && <p className="text-xs text-slate-500 mt-0.5">{p.no_hp}</p>}
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm mt-2">{p.nama}</h3>
+                  {p.no_hp && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{p.no_hp}</p>}
                 </div>
               ))}
             </div>
 
-            <div className="w-full max-w-4xl h-0.5 bg-slate-300 mx-auto my-4"></div>
+            <div className="w-full max-w-4xl h-0.5 bg-slate-200 dark:bg-slate-800 mx-auto my-4"></div>
 
             {/* Level 4: Koordinator Seksi & Anggota */}
             <div>
               <div className="text-center mb-6">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                  Koordinator Seksi & Pembagian Tugas
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3.5 py-1 rounded-full border border-slate-200/60 dark:border-slate-700">
+                  Koordinator Seksi &amp; Pembagian Tugas
                 </span>
               </div>
 
@@ -459,41 +534,43 @@ export default function StrukturPage() {
                   const members = panitiaList.filter(
                     (p) => p.seksi_id === s.id && p.id !== s.koordinator_id
                   );
+                  const koordinatorPanitia = panitiaList.find((p) => p.id === s.koordinator_id);
+
                   return (
                     <div
                       key={s.id}
-                      className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col justify-between"
+                      className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 shadow-xs flex flex-col justify-between"
                     >
                       <div>
-                        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                          <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                            <FolderTree className="w-4 h-4 text-emerald-600" />
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
+                          <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5">
+                            <FolderTree className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                             {s.nama_seksi}
                           </h4>
-                          <div className="flex items-center gap-1 no-print">
-                            <button
-                              onClick={() => openEditSeksi(s)}
-                              className="p-1 text-slate-400 hover:text-slate-700 rounded"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSeksi(s.id, s.nama_seksi)}
-                              className="p-1 text-slate-400 hover:text-rose-600 rounded"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                          <TableActionGroup
+                            onEdit={() => openEditSeksi(s)}
+                            onDelete={() => handleDeleteSeksi(s.id, s.nama_seksi)}
+                          />
                         </div>
 
                         {/* Koordinator Card */}
-                        <div className="mt-3 bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-xs">
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">
-                            Koordinator / PJ
-                          </span>
-                          <p className="font-semibold text-slate-900 text-xs mt-1">{s.koordinator_nama}</p>
+                        <div className="mt-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded uppercase">
+                              Koordinator / PJ
+                            </span>
+                            {isKetua && koordinatorPanitia?.user_id && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                                <UserCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                @{koordinatorPanitia.user_username}
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-semibold text-slate-900 dark:text-white text-xs mt-1.5">
+                            {s.koordinator_nama}
+                          </p>
                           {s.koordinator_hp && (
-                            <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
                               <Phone className="w-3 h-3 text-slate-400" />
                               {s.koordinator_hp}
                             </p>
@@ -502,20 +579,28 @@ export default function StrukturPage() {
 
                         {/* Anggota List */}
                         <div className="mt-3">
-                          <span className="text-[11px] font-medium text-slate-500 block mb-1">
+                          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
                             Anggota ({members.length}):
                           </span>
                           {members.length === 0 ? (
-                            <p className="text-xs text-slate-400 italic">Belum ada anggota</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 italic">
+                              Belum ada anggota
+                            </p>
                           ) : (
                             <ul className="space-y-1">
                               {members.map((m) => (
                                 <li
                                   key={m.id}
-                                  className="text-xs text-slate-700 flex items-center justify-between bg-white px-2 py-1 rounded border border-slate-100"
+                                  className="text-xs text-slate-700 dark:text-slate-200 flex items-center justify-between bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800"
                                 >
-                                  <span>{m.nama}</span>
-                                  {m.no_hp && <span className="text-[10px] text-slate-400">{m.no_hp}</span>}
+                                  <div className="truncate mr-1">
+                                    <span>{m.nama}</span>
+                                    {m.no_hp && (
+                                      <span className="text-[10px] text-slate-400 ml-1.5">
+                                        {m.no_hp}
+                                      </span>
+                                    )}
+                                  </div>
                                 </li>
                               ))}
                             </ul>
@@ -524,9 +609,14 @@ export default function StrukturPage() {
                       </div>
 
                       {/* Seksi Progress */}
-                      <div className="mt-4 pt-2 border-t border-slate-200/60 text-[11px] text-slate-500 flex justify-between">
+                      <div className="mt-4 pt-2 border-t border-slate-200/60 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex justify-between">
                         <span>Tugas: {s.tugas_selesai}/{s.total_tugas} Selesai</span>
-                        <span>{s.total_tugas > 0 ? Math.round((s.tugas_selesai / s.total_tugas) * 100) : 0}%</span>
+                        <span>
+                          {s.total_tugas > 0
+                            ? Math.round((s.tugas_selesai / s.total_tugas) * 100)
+                            : 0}
+                          %
+                        </span>
                       </div>
                     </div>
                   );
@@ -534,306 +624,161 @@ export default function StrukturPage() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* View Mode: Table */}
-        {viewMode === "table" && (
-          <div className="space-y-6">
-            {/* Tabel Panitia */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-slate-800 text-base">Daftar Seluruh Anggota Panitia</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Total: {panitiaList.length} orang</p>
-                </div>
+        ) : (
+          /* View Mode: Table */
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
+            <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Daftar Seluruh Anggota Panitia
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Total: {panitiaList.length} orang
+                </p>
               </div>
+            </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      <th className="py-3 px-4">Nama Lengkap</th>
-                      <th className="py-3 px-4">Jabatan</th>
-                      <th className="py-3 px-4">Seksi</th>
-                      <th className="py-3 px-4">Kontak / No HP</th>
-                      <th className="py-3 px-4">Catatan</th>
-                      <th className="py-3 px-4 text-right no-print">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {panitiaList.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50/50 transition">
-                        <td className="py-3 px-4 font-medium text-slate-800">{p.nama}</td>
-                        <td className="py-3 px-4">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/50">
-                            {p.jabatan}
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse text-sm min-w-[640px]">
+                <thead>
+                  <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    <th className="py-3 px-4">Nama Lengkap</th>
+                    <th className="py-3 px-4">Jabatan</th>
+                    <th className="py-3 px-4">Seksi</th>
+                    <th className="py-3 px-4">Kontak / No HP</th>
+                    <th className="py-3 px-4">Catatan</th>
+                    <th className="py-3 px-4">Akun Pengguna</th>
+                    <th className="py-3 px-4 text-right no-print">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {panitiaList.map((p, idx) => (
+                    <tr
+                      key={p.id}
+                      style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
+                      className="animate-stagger-item hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition"
+                    >
+                      <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">
+                        {p.nama}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800">
+                          {p.jabatan}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300 text-xs">
+                        {p.nama_seksi ? (
+                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md">
+                            {p.nama_seksi}
                           </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-600">
-                          {p.nama_seksi ? (
-                            <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-                              {p.nama_seksi}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 text-xs">-</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 text-xs font-mono">
-                          {p.no_hp || "-"}
-                        </td>
-                        <td className="py-3 px-4 text-slate-500 text-xs max-w-xs truncate">
-                          {p.catatan || "-"}
-                        </td>
-                        <td className="py-3 px-4 text-right space-x-1 no-print">
+                        ) : (
+                          <span className="text-slate-400 italic">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300 text-xs">
+                        {p.no_hp || <span className="text-slate-400 italic">-</span>}
+                      </td>
+                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-xs max-w-[200px] truncate">
+                        {p.catatan || "-"}
+                      </td>
+                      <td className="py-3 px-4">
+                        {p.user_id ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 font-medium">
+                            <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            @{p.user_username}
+                          </span>
+                        ) : isKetua ? (
                           <button
-                            onClick={() => openEditPanitia(p)}
-                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                            type="button"
+                            onClick={() => {
+                              setSelectedPanitiaForAccount(p);
+                              setModalBuatAkunOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 transition cursor-pointer"
+                            title="Buat Akun Pengguna"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <UserPlus className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Buat Akun</span>
                           </button>
-                          <button
-                            onClick={() => handleDeletePanitia(p.id, p.nama)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Tabel Seksi */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-slate-800 text-base">Daftar Seksi & Penanggung Jawab</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Satu seksi wajib memiliki 1 koordinator dari panitia</p>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      <th className="py-3 px-4">Nama Seksi</th>
-                      <th className="py-3 px-4">Koordinator (Captain)</th>
-                      <th className="py-3 px-4">Kontak Koordinator</th>
-                      <th className="py-3 px-4">Jumlah Anggota</th>
-                      <th className="py-3 px-4">Progress Tugas</th>
-                      <th className="py-3 px-4 text-right no-print">Aksi</th>
+                        ) : (
+                          <span className="text-slate-400 text-xs">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right no-print">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <TableActionGroup
+                            onEdit={() => openEditPanitia(p)}
+                            onDelete={() => handleDeletePanitia(p.id, p.nama)}
+                            editTooltip="Edit data panitia"
+                            deleteTooltip="Hapus data panitia"
+                          />
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {seksiList.map((s) => (
-                      <tr key={s.id} className="hover:bg-slate-50/50 transition">
-                        <td className="py-3 px-4 font-semibold text-slate-800 flex items-center gap-2">
-                          <FolderTree className="w-4 h-4 text-emerald-600" />
-                          {s.nama_seksi}
-                        </td>
-                        <td className="py-3 px-4 font-medium text-slate-800">
-                          {s.koordinator_nama}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 text-xs font-mono">
-                          {s.koordinator_hp || "-"}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 text-xs">
-                          {s.total_anggota} orang
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 text-xs">
-                          <span className="font-semibold text-emerald-700">
-                            {s.tugas_selesai}/{s.total_tugas}
-                          </span>{" "}
-                          ({s.total_tugas > 0 ? Math.round((s.tugas_selesai / s.total_tugas) * 100) : 0}%)
-                        </td>
-                        <td className="py-3 px-4 text-right space-x-1 no-print">
-                          <button
-                            onClick={() => openEditSeksi(s)}
-                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSeksi(s.id, s.nama_seksi)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* MODAL TAMBAH / EDIT PANITIA */}
-        {modalPanitiaOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 no-print">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">
-                {editingPanitia ? "Edit Data Panitia" : "Tambah Anggota Panitia"}
-              </h3>
+        {/* Floating Speed Dial Actions di Kanan Bawah */}
+        <SpeedDialActions
+          triggerLabel="Aksi Struktur"
+          actions={[
+            {
+              label: "Cetak / PDF",
+              icon: Printer,
+              variant: "secondary",
+              onClick: () => window.print(),
+            },
+            {
+              label: "Seksi Baru",
+              icon: FolderTree,
+              variant: "outline",
+              onClick: openAddSeksi,
+            },
+            {
+              label: "Tambah Anggota",
+              icon: Plus,
+              variant: "primary",
+              onClick: openAddPanitia,
+            },
+          ]}
+        />
 
-              <form onSubmit={handleSavePanitia} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Lengkap *</label>
-                  <input
-                    type="text"
-                    required
-                    value={panitiaForm.nama}
-                    onChange={(e) => setPanitiaForm({ ...panitiaForm, nama: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Muhammad Rizky"
-                  />
-                </div>
+        <PanitiaModal
+          isOpen={modalPanitiaOpen}
+          onClose={() => setModalPanitiaOpen(false)}
+          onSubmit={handleSavePanitia}
+          isEdit={Boolean(editingPanitia)}
+          form={panitiaForm}
+          setForm={setPanitiaForm}
+          seksiList={seksiList}
+        />
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Jabatan *</label>
-                  <select
-                    required
-                    value={panitiaForm.jabatan}
-                    onChange={(e) => setPanitiaForm({ ...panitiaForm, jabatan: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="Anggota Seksi">Anggota Seksi (Default)</option>
-                    <option value="Koordinator Seksi">Koordinator Seksi</option>
-                    <option value="Bendahara">Bendahara</option>
-                    <option value="Sekretaris">Sekretaris</option>
-                    <option value="Wakil Ketua">Wakil Ketua</option>
-                    <option value="Ketua Panitia">Ketua Panitia</option>
-                    <option value="Penasihat">Penasihat</option>
-                    <option value="Pelindung">Pelindung</option>
-                  </select>
-                </div>
+        <SeksiModal
+          isOpen={modalSeksiOpen}
+          onClose={() => setModalSeksiOpen(false)}
+          onSubmit={handleSaveSeksi}
+          isEdit={Boolean(editingSeksi)}
+          form={seksiForm}
+          setForm={setSeksiForm}
+          panitiaList={panitiaList}
+        />
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Seksi (Opsional)</label>
-                  <select
-                    value={panitiaForm.seksi_id}
-                    onChange={(e) => setPanitiaForm({ ...panitiaForm, seksi_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="">-- Tanpa Seksi (Struktural Utama) --</option>
-                    {seksiList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nama_seksi}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+        <BuatAkunModal
+          isOpen={modalBuatAkunOpen}
+          onClose={() => {
+            setModalBuatAkunOpen(false);
+            setSelectedPanitiaForAccount(null);
+          }}
+          panitia={selectedPanitiaForAccount}
+          onSuccess={fetchData}
+        />
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">No. HP / WhatsApp</label>
-                  <input
-                    type="text"
-                    value={panitiaForm.no_hp}
-                    onChange={(e) => setPanitiaForm({ ...panitiaForm, no_hp: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="081234567890"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan</label>
-                  <textarea
-                    rows={2}
-                    value={panitiaForm.catatan}
-                    onChange={(e) => setPanitiaForm({ ...panitiaForm, catatan: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Penanggung jawab sound system masjid"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalPanitiaOpen(false)}
-                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-                  >
-                    Simpan
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL TAMBAH / EDIT SEKSI */}
-        {modalSeksiOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 no-print">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">
-                {editingSeksi ? "Edit Seksi" : "Tambah Seksi Baru"}
-              </h3>
-
-              <form onSubmit={handleSaveSeksi} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Seksi *</label>
-                  <input
-                    type="text"
-                    required
-                    value={seksiForm.nama_seksi}
-                    onChange={(e) => setSeksiForm({ ...seksiForm, nama_seksi: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="Contoh: Seksi Ubudiyah / Seksi Dekorasi"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Koordinator / Captain (Wajib dipilih dari panitia) *
-                  </label>
-                  <select
-                    required
-                    value={seksiForm.koordinator_id}
-                    onChange={(e) => setSeksiForm({ ...seksiForm, koordinator_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="" disabled>
-                      -- Pilih Koordinator --
-                    </option>
-                    {panitiaList.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nama} ({p.jabatan})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Satu seksi harus memiliki 1 penanggung jawab utama.
-                  </p>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalSeksiOpen(false)}
-                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-                  >
-                    Simpan Seksi
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {confirmDialog}
       </main>
-    </div>
+    </Navbar>
   );
 }

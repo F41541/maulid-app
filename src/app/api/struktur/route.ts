@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { query, queryOne, execute, withTransaction } from "@/lib/db";
+import { requireAuth, ROLES } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
 
 export async function GET(req: NextRequest) {
   try {
-    const db = getDb();
-    const panitiaList = db.prepare(`
-      SELECT p.*, s.nama_seksi 
+    await requireAuth();
+
+    const panitiaList = await query(`
+      SELECT 
+        p.*, s.nama_seksi,
+        u.username as user_username, u.role as user_role, u.status as user_status
       FROM panitia p 
       LEFT JOIN seksi s ON p.seksi_id = s.id 
+      LEFT JOIN admin_users u ON p.user_id = u.id
       ORDER BY 
         CASE 
           WHEN p.jabatan = 'Pelindung' THEN 1
@@ -20,9 +25,9 @@ export async function GET(req: NextRequest) {
           WHEN p.jabatan = 'Koordinator Seksi' THEN 7
           ELSE 8
         END, p.nama ASC
-    `).all();
+    `);
 
-    const seksiList = db.prepare(`
+    const seksiList = await query(`
       SELECT s.*, p.nama as koordinator_nama, p.no_hp as koordinator_hp,
         (SELECT COUNT(*) FROM panitia WHERE seksi_id = s.id) as total_anggota,
         (SELECT COUNT(*) FROM tugas WHERE seksi_id = s.id) as total_tugas,
@@ -30,18 +35,21 @@ export async function GET(req: NextRequest) {
       FROM seksi s
       JOIN panitia p ON s.koordinator_id = p.id
       ORDER BY s.nama_seksi ASC
-    `).all();
+    `);
 
     return NextResponse.json({ panitia: panitiaList, seksi: seksiList });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (err instanceof Error && err.message === "UNAUTHORIZED") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.error("[Struktur API] GET Error:", err);
+    return NextResponse.json({ error: "Terjadi kesalahan pada server" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const db = getDb();
+    await requireAuth([ROLES.KETUA_PANITIA, ROLES.WAKIL_KETUA]);
     const body = await req.json();
     const { action } = body;
 
@@ -52,9 +60,10 @@ export async function POST(req: NextRequest) {
       }
 
       const id = randomUUID();
-      db.prepare(
-        "INSERT INTO panitia (id, nama, jabatan, seksi_id, no_hp, catatan) VALUES (?, ?, ?, ?, ?, ?)"
-      ).run(id, nama, jabatan, seksi_id || null, no_hp || null, catatan || null);
+      await execute(
+        "INSERT INTO panitia (id, nama, jabatan, seksi_id, no_hp, catatan) VALUES (?, ?, ?, ?, ?, ?)",
+        [id, nama, jabatan, seksi_id || null, no_hp || null, catatan || null]
+      );
 
       return NextResponse.json({ success: true, id });
     }
@@ -65,9 +74,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Data panitia tidak lengkap" }, { status: 400 });
       }
 
-      db.prepare(
-        "UPDATE panitia SET nama = ?, jabatan = ?, seksi_id = ?, no_hp = ?, catatan = ? WHERE id = ?"
-      ).run(nama, jabatan, seksi_id || null, no_hp || null, catatan || null, id);
+      await execute(
+        "UPDATE panitia SET nama = ?, jabatan = ?, seksi_id = ?, no_hp = ?, catatan = ? WHERE id = ?",
+        [nama, jabatan, seksi_id || null, no_hp || null, catatan || null, id]
+      );
 
       return NextResponse.json({ success: true });
     }
@@ -77,15 +87,18 @@ export async function POST(req: NextRequest) {
       if (!id) return NextResponse.json({ error: "ID panitia diperlukan" }, { status: 400 });
 
       // Check if this panitia is a coordinator for any seksi
-      const seksiCount = db.prepare("SELECT COUNT(*) as count FROM seksi WHERE koordinator_id = ?").get(id) as { count: number };
-      if (seksiCount.count > 0) {
+      const seksiCount = await queryOne<{ count: number }>(
+        "SELECT COUNT(*) as count FROM seksi WHERE koordinator_id = ?",
+        [id]
+      );
+      if (Number(seksiCount?.count || 0) > 0) {
         return NextResponse.json(
           { error: "Tidak dapat menghapus panitia yang menjabat sebagai koordinator seksi. Ganti koordinator seksi terlebih dahulu." },
           { status: 400 }
         );
       }
 
-      db.prepare("DELETE FROM panitia WHERE id = ?").run(id);
+      await execute("DELETE FROM panitia WHERE id = ?", [id]);
       return NextResponse.json({ success: true });
     }
 
@@ -96,20 +109,21 @@ export async function POST(req: NextRequest) {
       }
 
       // Verify koordinator exists
-      const koordinator = db.prepare("SELECT id FROM panitia WHERE id = ?").get(koordinator_id);
+      const koordinator = await queryOne("SELECT id FROM panitia WHERE id = ?", [koordinator_id]);
       if (!koordinator) {
         return NextResponse.json({ error: "Koordinator tidak ditemukan di daftar panitia" }, { status: 400 });
       }
 
       const id = randomUUID();
-      db.prepare("INSERT INTO seksi (id, nama_seksi, koordinator_id) VALUES (?, ?, ?)").run(
-        id,
-        nama_seksi,
-        koordinator_id
-      );
+      await withTransaction(async (conn) => {
+        await conn.execute("INSERT INTO seksi (id, nama_seksi, koordinator_id) VALUES (?, ?, ?)", [
+          id,
+          nama_seksi,
+          koordinator_id,
+        ]);
 
-      // Also set seksi_id on the coordinator panitia record if not set
-      db.prepare("UPDATE panitia SET seksi_id = ? WHERE id = ?").run(id, koordinator_id);
+        await conn.execute("UPDATE panitia SET seksi_id = ? WHERE id = ?", [id, koordinator_id]);
+      });
 
       return NextResponse.json({ success: true, id });
     }
@@ -121,19 +135,20 @@ export async function POST(req: NextRequest) {
       }
 
       // Verify koordinator exists
-      const koordinator = db.prepare("SELECT id FROM panitia WHERE id = ?").get(koordinator_id);
+      const koordinator = await queryOne("SELECT id FROM panitia WHERE id = ?", [koordinator_id]);
       if (!koordinator) {
         return NextResponse.json({ error: "Koordinator tidak ditemukan di daftar panitia" }, { status: 400 });
       }
 
-      db.prepare("UPDATE seksi SET nama_seksi = ?, koordinator_id = ? WHERE id = ?").run(
-        nama_seksi,
-        koordinator_id,
-        id
-      );
+      await withTransaction(async (conn) => {
+        await conn.execute("UPDATE seksi SET nama_seksi = ?, koordinator_id = ? WHERE id = ?", [
+          nama_seksi,
+          koordinator_id,
+          id,
+        ]);
 
-      // Update coordinator's seksi
-      db.prepare("UPDATE panitia SET seksi_id = ? WHERE id = ?").run(id, koordinator_id);
+        await conn.execute("UPDATE panitia SET seksi_id = ? WHERE id = ?", [id, koordinator_id]);
+      });
 
       return NextResponse.json({ success: true });
     }
@@ -142,16 +157,24 @@ export async function POST(req: NextRequest) {
       const { id } = body;
       if (!id) return NextResponse.json({ error: "ID seksi diperlukan" }, { status: 400 });
 
-      // Detach panitia assigned to this seksi
-      db.prepare("UPDATE panitia SET seksi_id = NULL WHERE seksi_id = ?").run(id);
-      db.prepare("DELETE FROM seksi WHERE id = ?").run(id);
+      await withTransaction(async (conn) => {
+        // Detach panitia assigned to this seksi
+        await conn.execute("UPDATE panitia SET seksi_id = NULL WHERE seksi_id = ?", [id]);
+        await conn.execute("DELETE FROM seksi WHERE id = ?", [id]);
+      });
 
       return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: "Aksi tidak dikenali" }, { status: 400 });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (err instanceof Error && err.message === "UNAUTHORIZED") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (err instanceof Error && err.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Hanya Ketua Panitia atau Wakil Ketua yang dapat mengubah struktur organisasi" }, { status: 403 });
+    }
+    console.error("[Struktur API] POST Error:", err);
+    return NextResponse.json({ error: "Terjadi kesalahan pada server" }, { status: 500 });
   }
 }
