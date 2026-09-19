@@ -59,18 +59,14 @@ export function SeksiModal({
         </FormField>
 
         <FormField
-          label="Koordinator / Captain (Wajib dari panitia)"
-          required
-          hint="Satu seksi harus memiliki 1 penanggung jawab utama."
+          label="Koordinator / Captain (Opsional)"
+          hint="Penanggung jawab seksi dapat ditentukan sekarang atau menyusul."
         >
           <Select
-            required
             value={form.koordinator_id}
             onChange={(e) => setForm({ ...form, koordinator_id: e.target.value })}
           >
-            <option value="" disabled>
-              -- Pilih Koordinator --
-            </option>
+            <option value="">-- Belum Ditentukan (Opsional) --</option>
             {panitiaList.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nama} ({p.jabatan})

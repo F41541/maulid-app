@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         (SELECT COUNT(*) FROM tugas WHERE seksi_id = s.id) as total_tugas,
         (SELECT COUNT(*) FROM tugas WHERE seksi_id = s.id AND status = 'Selesai') as tugas_selesai
       FROM seksi s
-      JOIN panitia p ON s.koordinator_id = p.id
+      LEFT JOIN panitia p ON s.koordinator_id = p.id
       ORDER BY s.nama_seksi ASC
     `);
 
@@ -113,33 +113,42 @@ export async function POST(req: NextRequest) {
 
     if (action === "create_seksi") {
       const { nama_seksi, koordinator_id } = body;
-      if (!nama_seksi || !koordinator_id) {
-        return NextResponse.json({ error: "Nama seksi dan Koordinator wajib diisi" }, { status: 400 });
+      if (!nama_seksi) {
+        return NextResponse.json({ error: "Nama seksi wajib diisi" }, { status: 400 });
       }
 
-      // Verify koordinator exists
-      const koordinator = await queryOne("SELECT id FROM panitia WHERE id = ?", [koordinator_id]);
-      if (!koordinator) {
-        return NextResponse.json({ error: "Koordinator tidak ditemukan di daftar panitia" }, { status: 400 });
+      if (koordinator_id) {
+        // Verify koordinator exists
+        const koordinator = await queryOne("SELECT id FROM panitia WHERE id = ?", [koordinator_id]);
+        if (!koordinator) {
+          return NextResponse.json({ error: "Koordinator tidak ditemukan di daftar panitia" }, { status: 400 });
+        }
       }
 
       const id = randomUUID();
-      await withTransaction(async (conn) => {
-        await conn.execute("INSERT INTO seksi (id, nama_seksi, koordinator_id) VALUES (?, ?, ?)", [
+      if (koordinator_id) {
+        await withTransaction(async (conn) => {
+          await conn.execute("INSERT INTO seksi (id, nama_seksi, koordinator_id) VALUES (?, ?, ?)", [
+            id,
+            nama_seksi,
+            koordinator_id,
+          ]);
+
+          await conn.execute("UPDATE panitia SET seksi_id = ? WHERE id = ?", [id, koordinator_id]);
+        });
+      } else {
+        await execute("INSERT INTO seksi (id, nama_seksi, koordinator_id) VALUES (?, ?, NULL)", [
           id,
           nama_seksi,
-          koordinator_id,
         ]);
-
-        await conn.execute("UPDATE panitia SET seksi_id = ? WHERE id = ?", [id, koordinator_id]);
-      });
+      }
 
       return NextResponse.json({ success: true, id });
     }
 
     if (action === "update_seksi") {
       const { id, nama_seksi, koordinator_id } = body;
-      if (!id || !nama_seksi || !koordinator_id) {
+      if (!id || !nama_seksi) {
         return NextResponse.json({ error: "Data seksi tidak lengkap" }, { status: 400 });
       }
 
@@ -148,21 +157,28 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Seksi tidak ditemukan" }, { status: 404 });
       }
 
-      // Verify koordinator exists
-      const koordinator = await queryOne("SELECT id FROM panitia WHERE id = ?", [koordinator_id]);
-      if (!koordinator) {
-        return NextResponse.json({ error: "Koordinator tidak ditemukan di daftar panitia" }, { status: 400 });
-      }
+      if (koordinator_id) {
+        // Verify koordinator exists
+        const koordinator = await queryOne("SELECT id FROM panitia WHERE id = ?", [koordinator_id]);
+        if (!koordinator) {
+          return NextResponse.json({ error: "Koordinator tidak ditemukan di daftar panitia" }, { status: 400 });
+        }
 
-      await withTransaction(async (conn) => {
-        await conn.execute("UPDATE seksi SET nama_seksi = ?, koordinator_id = ? WHERE id = ?", [
+        await withTransaction(async (conn) => {
+          await conn.execute("UPDATE seksi SET nama_seksi = ?, koordinator_id = ? WHERE id = ?", [
+            nama_seksi,
+            koordinator_id,
+            id,
+          ]);
+
+          await conn.execute("UPDATE panitia SET seksi_id = ? WHERE id = ?", [id, koordinator_id]);
+        });
+      } else {
+        await execute("UPDATE seksi SET nama_seksi = ?, koordinator_id = NULL WHERE id = ?", [
           nama_seksi,
-          koordinator_id,
           id,
         ]);
-
-        await conn.execute("UPDATE panitia SET seksi_id = ? WHERE id = ?", [id, koordinator_id]);
-      });
+      }
 
       return NextResponse.json({ success: true });
     }

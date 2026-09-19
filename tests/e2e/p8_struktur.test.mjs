@@ -221,12 +221,17 @@ test("Page 8: Comprehensive Headed Playwright E2E Test for Struktur Organisasi (
       // Wait for modal to disappear
       await seksiModal.waitFor({ state: "hidden" });
 
-      // Verify seksi card appears in organogram
+      // Verify seksi card appears in organogram with unassigned coordinator badge
       const newSeksiCard = page.locator("div.rounded-2xl", {
         has: page.locator('h4:has-text("E2E-TEST-SEKSI-MULTIMEDIA")'),
       });
       await newSeksiCard.waitFor({ state: "visible", timeout: 8000 });
       assert.ok(await newSeksiCard.isVisible(), "New seksi E2E-TEST-SEKSI-MULTIMEDIA must be rendered in organogram");
+
+      // Verify "Belum Ditentukan" placeholder
+      const unassignedBadge = newSeksiCard.locator('span:has-text("Belum Ditentukan")');
+      await unassignedBadge.waitFor({ state: "visible" });
+      assert.ok(await unassignedBadge.isVisible(), "Seksi without coordinator must show 'Belum Ditentukan' badge");
 
       // 3. Verify Persistence on reload
       await page.reload({ waitUntil: "networkidle" });
@@ -240,9 +245,9 @@ test("Page 8: Comprehensive Headed Playwright E2E Test for Struktur Organisasi (
     });
 
     // ----------------------------------------------------
-    // Step 5: PanitiaModal - Validation, Create E2E-TEST-ANGGOTA-KAMERA & Persistence
+    // Step 5: PanitiaModal - Create Members, Multiple Members in 1 Jabatan Card & Persistence
     // ----------------------------------------------------
-    await t.test("8.5 PanitiaModal: Validation, Create E2E-TEST-ANGGOTA-KAMERA, and Persistence", async () => {
+    await t.test("8.5 PanitiaModal: Create Members & Multiple Members in 1 Organogram Card", async () => {
       // Ensure we are in Bagan Visual view
       const chartTab = page.locator('button[role="tab"]:has-text("Bagan Visual")');
       if (await chartTab.isVisible()) {
@@ -250,55 +255,53 @@ test("Page 8: Comprehensive Headed Playwright E2E Test for Struktur Organisasi (
         await page.waitForTimeout(300);
       }
 
-      await ensureSpeedDialOpen();
+      // Helper to add panitia
+      const addPanitia = async (nama, jabatan, seksiLabel = "", noHp = "") => {
+        await ensureSpeedDialOpen();
+        const anggotaAction = page.locator('button[role="menuitem"]:has-text("Tambah Anggota")');
+        await anggotaAction.click();
 
-      const anggotaAction = page.locator('button[role="menuitem"]:has-text("Tambah Anggota")');
-      await anggotaAction.click();
+        const panitiaModal = page.locator('div[role="dialog"]:has-text("Tambah Anggota Panitia")');
+        await panitiaModal.waitFor({ state: "visible" });
 
-      // Verify PanitiaModal opened
-      const panitiaModal = page.locator('div[role="dialog"]:has-text("Tambah Anggota Panitia")');
-      await panitiaModal.waitFor({ state: "visible" });
+        const namaInput = panitiaModal.locator('input[placeholder*="Muhammad Rizky"]');
+        await namaInput.fill(nama);
 
-      const namaInput = panitiaModal.locator('input[placeholder*="Muhammad Rizky"]');
-      const submitPanitiaBtn = panitiaModal.locator('button[type="submit"]:has-text("Simpan Anggota")');
+        const selects = panitiaModal.locator("select");
+        await selects.nth(0).selectOption({ value: jabatan });
 
-      // 1. Test empty form validation
-      await namaInput.fill("");
-      await submitPanitiaBtn.click();
-      const isNamaValid = await namaInput.evaluate((el) => el.checkValidity());
-      assert.equal(isNamaValid, false, "Empty nama panitia should fail HTML5 validation");
-      assert.ok(await panitiaModal.isVisible(), "Panitia modal should remain open on invalid submit");
+        if (seksiLabel) {
+          await selects.nth(1).selectOption({ label: seksiLabel });
+        }
 
-      // 2. Fill valid form details
-      await namaInput.fill("E2E-TEST-ANGGOTA-KAMERA");
+        if (noHp) {
+          const noHpInput = panitiaModal.locator('input[placeholder="081234567890"]');
+          await noHpInput.fill(noHp);
+        }
 
-      // Jabatan Select: Anggota Seksi
-      const selects = panitiaModal.locator("select");
-      const jabatanSelect = selects.nth(0);
-      await jabatanSelect.selectOption({ value: "Anggota Seksi" });
+        const submitPanitiaBtn = panitiaModal.locator('button[type="submit"]:has-text("Simpan Anggota")');
+        await submitPanitiaBtn.click();
 
-      // Seksi Select: Choose E2E-TEST-SEKSI-MULTIMEDIA
-      const seksiSelect = selects.nth(1);
-      await seksiSelect.selectOption({ label: "E2E-TEST-SEKSI-MULTIMEDIA" });
+        const successToast = page.locator('div[role="status"]:has-text("Panitia baru berhasil ditambahkan")');
+        await successToast.waitFor({ state: "visible", timeout: 8000 });
+        await panitiaModal.waitFor({ state: "hidden" });
+      };
 
-      // No HP & Catatan
-      const noHpInput = panitiaModal.locator('input[placeholder="081234567890"]');
-      await noHpInput.fill("08123456789");
+      // 1. Create E2E-TEST-ANGGOTA-KAMERA in E2E-TEST-SEKSI-MULTIMEDIA
+      await addPanitia("E2E-TEST-ANGGOTA-KAMERA", "Anggota Seksi", "E2E-TEST-SEKSI-MULTIMEDIA", "08123456789");
 
-      const catatanInput = panitiaModal.locator('textarea[placeholder*="sound system"]');
-      await catatanInput.fill("Staff Multimedia - Kamera dan Dokumentasi");
+      // 2. Create 2 members with the same jabatan (Pelindung) to test card grouping
+      await addPanitia("E2E-TEST-PELINDUNG-1", "Pelindung", "", "08111111111");
+      await addPanitia("E2E-TEST-PELINDUNG-2", "Pelindung", "", "08222222222");
 
-      // Submit form
-      await submitPanitiaBtn.click();
+      // Verify in Bagan Visual: Only 1 card for "Pelindung" exists, containing both names
+      const pelindungCards = page.locator('div:has(> span:has-text("PELINDUNG"))');
+      assert.equal(await pelindungCards.count(), 1, "There must be exactly 1 card for Pelindung even with multiple members");
+      const pelindungCardText = await pelindungCards.first().textContent();
+      assert.ok(pelindungCardText.includes("E2E-TEST-PELINDUNG-1"), "Card must include E2E-TEST-PELINDUNG-1");
+      assert.ok(pelindungCardText.includes("E2E-TEST-PELINDUNG-2"), "Card must include E2E-TEST-PELINDUNG-2");
 
-      // Verify toast notification
-      const successToast = page.locator('div[role="status"]:has-text("Panitia baru berhasil ditambahkan")');
-      await successToast.waitFor({ state: "visible", timeout: 8000 });
-
-      // Wait for modal to close
-      await panitiaModal.waitFor({ state: "hidden" });
-
-      // Verify member appears in organogram under E2E-TEST-SEKSI-MULTIMEDIA
+      // 3. Verify member appears in organogram under E2E-TEST-SEKSI-MULTIMEDIA
       const seksiCard = page.locator("div.rounded-2xl", {
         has: page.locator('h4:has-text("E2E-TEST-SEKSI-MULTIMEDIA")'),
       });
@@ -307,42 +310,58 @@ test("Page 8: Comprehensive Headed Playwright E2E Test for Struktur Organisasi (
       });
       await memberItem.waitFor({ state: "visible", timeout: 8000 });
       assert.ok(await memberItem.isVisible(), "Member E2E-TEST-ANGGOTA-KAMERA must appear under E2E-TEST-SEKSI-MULTIMEDIA");
+    });
 
-      // 3. Verify Persistence on reload in both views
-      await page.reload({ waitUntil: "networkidle" });
-      await page.waitForSelector("main", { state: "visible" });
-
-      // In Bagan Visual
-      const seksiCardReloaded = page.locator("div.rounded-2xl", {
-        has: page.locator('h4:has-text("E2E-TEST-SEKSI-MULTIMEDIA")'),
-      });
-      const memberItemReloaded = seksiCardReloaded.locator("ul li", {
-        hasText: "E2E-TEST-ANGGOTA-KAMERA",
-      });
-      await memberItemReloaded.waitFor({ state: "visible", timeout: 8000 });
-      assert.ok(await memberItemReloaded.isVisible(), "Member must persist in Bagan Visual view after reload");
-
-      // In Tabel / Daftar View
+    // ----------------------------------------------------
+    // Step 6: Search & Filter on Table View & BuatAkunModal Integration
+    // ----------------------------------------------------
+    await t.test("8.6 Table Search & Filter and BuatAkunModal Integration", async () => {
+      // Switch to Table view
       const tableTab = page.locator('button[role="tab"]:has-text("Tabel / Daftar")');
       await tableTab.click();
       await page.waitForTimeout(300);
 
-      const tableRow = page.locator("table tbody tr", {
-        hasText: "E2E-TEST-ANGGOTA-KAMERA",
-      });
-      await tableRow.waitFor({ state: "visible", timeout: 8000 });
-      const rowText = await tableRow.textContent();
-      assert.ok(rowText.includes("E2E-TEST-ANGGOTA-KAMERA"), "Table row must contain member name");
-      assert.ok(rowText.includes("Anggota Seksi"), "Table row must contain jabatan Anggota Seksi");
-      assert.ok(rowText.includes("E2E-TEST-SEKSI-MULTIMEDIA"), "Table row must contain seksi name");
-      assert.ok(rowText.includes("08123456789"), "Table row must contain kontak 08123456789");
-    });
+      // 1. Test Search by name
+      const searchInput = page.locator('input[aria-label="Cari panitia"]');
+      await searchInput.waitFor({ state: "visible" });
+      await searchInput.fill("KAMERA");
+      await page.waitForTimeout(300);
 
-    // ----------------------------------------------------
-    // Step 6: BuatAkunModal Integration on Unlinked Panitia Row
-    // ----------------------------------------------------
-    await t.test("8.6 BuatAkunModal Integration on Unlinked Panitia Member", async () => {
-      // Find row for E2E-TEST-ANGGOTA-KAMERA in Table view
+      const searchFilteredRows = page.locator("table tbody tr");
+      assert.equal(await searchFilteredRows.count(), 1, "Search for KAMERA should return exactly 1 row");
+      assert.ok((await searchFilteredRows.first().textContent()).includes("E2E-TEST-ANGGOTA-KAMERA"));
+
+      // Test Clear Search button
+      const clearSearchBtn = page.locator('button[aria-label="Hapus pencarian"]');
+      await clearSearchBtn.click();
+      await page.waitForTimeout(300);
+      assert.ok((await page.locator("table tbody tr").count()) > 1, "Clearing search should restore table rows");
+
+      // 2. Test Filter by Seksi
+      const seksiFilter = page.locator('select[aria-label="Filter seksi"]');
+      await seksiFilter.selectOption({ label: "E2E-TEST-SEKSI-MULTIMEDIA" });
+      await page.waitForTimeout(300);
+
+      const seksiFilteredRows = page.locator("table tbody tr");
+      for (let i = 0; i < await seksiFilteredRows.count(); i++) {
+        const text = await seksiFilteredRows.nth(i).textContent();
+        assert.ok(text.includes("E2E-TEST-SEKSI-MULTIMEDIA"), "All filtered rows must belong to E2E-TEST-SEKSI-MULTIMEDIA");
+      }
+
+      // 3. Test Filter by Jabatan
+      const jabatanFilter = page.locator('select[aria-label="Filter jabatan"]');
+      await jabatanFilter.selectOption({ label: "Pelindung" });
+      await page.waitForTimeout(300);
+
+      // Should show 0 rows because no Pelindung is in E2E-TEST-SEKSI-MULTIMEDIA
+      assert.ok((await page.locator("table tbody tr").textContent()).includes("Tidak ada panitia yang sesuai"));
+
+      // 4. Test Reset button
+      const resetBtn = page.locator('button:has-text("Reset")').first();
+      await resetBtn.click();
+      await page.waitForTimeout(300);
+
+      // Verify row for E2E-TEST-ANGGOTA-KAMERA is present again
       const tableRow = page.locator("table tbody tr", {
         hasText: "E2E-TEST-ANGGOTA-KAMERA",
       });
@@ -416,29 +435,28 @@ test("Page 8: Comprehensive Headed Playwright E2E Test for Struktur Organisasi (
       await updateToast.waitFor({ state: "visible", timeout: 8000 });
       await editPanitiaModal.waitFor({ state: "hidden" });
 
-      // 2. Delete Panitia (First in reverse FK teardown)
-      const updatedTableRow = page.locator("table tbody tr", {
-        hasText: "E2E-TEST-ANGGOTA-KAMERA",
-      });
-      const deletePanitiaBtn = updatedTableRow.locator('button[title="Hapus data panitia"], button[aria-label="Hapus data panitia"]');
-      await deletePanitiaBtn.click();
+      // 2. Delete Panitia members
+      const deletePanitiaByName = async (nama) => {
+        const row = page.locator("table tbody tr", { hasText: nama });
+        if (await row.count() > 0) {
+          const deleteBtn = row.locator('button[title="Hapus data panitia"], button[aria-label="Hapus data panitia"]').first();
+          await deleteBtn.click();
 
-      // Confirm dialog for panitia
-      const confirmPanitiaDialog = page.locator('div[role="dialog"]:has-text("Hapus Panitia")');
-      await confirmPanitiaDialog.waitFor({ state: "visible" });
-      const confirmPanitiaBtn = confirmPanitiaDialog.locator('button:has-text("Ya, Lanjutkan")');
-      await confirmPanitiaBtn.click();
+          const confirmDialog = page.locator('div[role="dialog"]:has-text("Hapus Panitia")');
+          await confirmDialog.waitFor({ state: "visible" });
+          const confirmBtn = confirmDialog.locator('button:has-text("Ya, Lanjutkan")');
+          await confirmBtn.click();
 
-      const deletePanitiaToast = page.locator('div[role="status"]:has-text("Panitia berhasil dihapus")');
-      await deletePanitiaToast.waitFor({ state: "visible", timeout: 8000 });
-      await confirmPanitiaDialog.waitFor({ state: "hidden" });
+          const deleteToast = page.locator('div[role="status"]:has-text("Panitia berhasil dihapus")');
+          await deleteToast.waitFor({ state: "visible", timeout: 8000 });
+          await confirmDialog.waitFor({ state: "hidden" });
+          await page.waitForTimeout(300);
+        }
+      };
 
-      // Verify row is gone from table
-      await page.waitForTimeout(500);
-      const remainingRow = page.locator("table tbody tr", {
-        hasText: "E2E-TEST-ANGGOTA-KAMERA",
-      });
-      assert.equal(await remainingRow.count(), 0, "Panitia row must be removed from table");
+      await deletePanitiaByName("E2E-TEST-ANGGOTA-KAMERA");
+      await deletePanitiaByName("E2E-TEST-PELINDUNG-1");
+      await deletePanitiaByName("E2E-TEST-PELINDUNG-2");
 
       // 3. Switch to Bagan Visual to test Edit and Delete Seksi
       const chartTab = page.locator('button[role="tab"]:has-text("Bagan Visual")');

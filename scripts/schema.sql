@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS `panitia` (
 CREATE TABLE IF NOT EXISTS `seksi` (
   `id` VARCHAR(36) NOT NULL,
   `nama_seksi` VARCHAR(255) NOT NULL,
-  `koordinator_id` VARCHAR(36) NOT NULL,
+  `koordinator_id` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_seksi_koordinator` (`koordinator_id`),
