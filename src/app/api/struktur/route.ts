@@ -63,10 +63,20 @@ export async function POST(req: NextRequest) {
       }
 
       const id = randomUUID();
-      await execute(
-        "INSERT INTO panitia (id, nama, jabatan, seksi_id, no_hp, catatan) VALUES (?, ?, ?, ?, ?, ?)",
-        [id, nama, jabatan, seksi_id || null, no_hp || null, catatan || null]
-      );
+      await withTransaction(async (conn) => {
+        await conn.execute(
+          "INSERT INTO panitia (id, nama, jabatan, seksi_id, no_hp, catatan) VALUES (?, ?, ?, ?, ?, ?)",
+          [id, nama, jabatan, seksi_id || null, no_hp || null, catatan || null]
+        );
+
+        if (jabatan === "Koordinator Seksi" && seksi_id) {
+          await conn.execute(
+            "UPDATE panitia SET jabatan = 'Anggota Seksi' WHERE seksi_id = ? AND jabatan = 'Koordinator Seksi' AND id != ?",
+            [seksi_id, id]
+          );
+          await conn.execute("UPDATE seksi SET koordinator_id = ? WHERE id = ?", [id, seksi_id]);
+        }
+      });
 
       return NextResponse.json({ success: true, id });
     }
@@ -77,13 +87,39 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Data panitia tidak lengkap" }, { status: 400 });
       }
 
-      const result = await execute(
-        "UPDATE panitia SET nama = ?, jabatan = ?, seksi_id = ?, no_hp = ?, catatan = ? WHERE id = ?",
-        [nama, jabatan, seksi_id || null, no_hp || null, catatan || null, id]
+      const currentPanitia = await queryOne<{ id: string; jabatan: string; seksi_id: string | null }>(
+        "SELECT id, jabatan, seksi_id FROM panitia WHERE id = ?",
+        [id]
       );
-      if (result.affectedRows === 0) {
+      if (!currentPanitia) {
         return NextResponse.json({ error: "Panitia tidak ditemukan" }, { status: 404 });
       }
+
+      await withTransaction(async (conn) => {
+        await conn.execute(
+          "UPDATE panitia SET nama = ?, jabatan = ?, seksi_id = ?, no_hp = ?, catatan = ? WHERE id = ?",
+          [nama, jabatan, seksi_id || null, no_hp || null, catatan || null, id]
+        );
+
+        if (jabatan === "Koordinator Seksi" && seksi_id) {
+          await conn.execute(
+            "UPDATE panitia SET jabatan = 'Anggota Seksi' WHERE seksi_id = ? AND jabatan = 'Koordinator Seksi' AND id != ?",
+            [seksi_id, id]
+          );
+          await conn.execute("UPDATE seksi SET koordinator_id = ? WHERE id = ?", [id, seksi_id]);
+        } else {
+          // If this panitia was previously koordinator_id of a seksi, reset it if they're no longer coordinator of that seksi
+          if (currentPanitia.seksi_id && currentPanitia.seksi_id !== seksi_id) {
+            await conn.execute("UPDATE seksi SET koordinator_id = NULL WHERE id = ? AND koordinator_id = ?", [
+              currentPanitia.seksi_id,
+              id,
+            ]);
+          }
+          if (jabatan !== "Koordinator Seksi") {
+            await conn.execute("UPDATE seksi SET koordinator_id = NULL WHERE koordinator_id = ?", [id]);
+          }
+        }
+      });
 
       return NextResponse.json({ success: true });
     }
