@@ -85,7 +85,7 @@ export function PanitiaOrganogramCard({
             )}
 
             {(onEdit || onMove) && (
-              <div className="absolute top-0 right-0 flex items-center gap-1 opacity-0 group-hover/person:opacity-100 transition no-print">
+              <div className="absolute top-0 right-0 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/person:opacity-100 transition no-print">
                 {onMove && (
                   <button
                     type="button"

@@ -407,8 +407,8 @@ export default function StrukturPage() {
   return (
     <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
         {/* Switch Modern Mode Tampilan: Bagan Visual / Tabel / Susunan Panitia */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
-          <div className="inline-flex p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300/70 dark:border-slate-700 shadow-xs">
+        <div className="w-full overflow-x-auto no-scrollbar mb-6 no-print">
+          <div className="inline-flex p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300/70 dark:border-slate-700 shadow-xs min-w-max">
             <button
               type="button"
               role="tab"
@@ -620,7 +620,7 @@ export default function StrukturPage() {
                                   <button
                                     type="button"
                                     onClick={() => openMovePanitia(koordinatorPanitia)}
-                                    className="p-1 rounded text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer no-print opacity-0 group-hover/coord:opacity-100"
+                                    className="p-1 rounded text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer no-print opacity-100 sm:opacity-0 sm:group-hover/coord:opacity-100"
                                     aria-label={`Pindah posisi ${koordinatorPanitia.nama}`}
                                     title="Pindah Posisi / Jabatan"
                                   >
@@ -680,7 +680,7 @@ export default function StrukturPage() {
                                     <button
                                       type="button"
                                       onClick={() => openMovePanitia(m)}
-                                      className="p-1 rounded text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer no-print opacity-0 group-hover/member:opacity-100 shrink-0"
+                                      className="p-1 rounded text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer no-print opacity-100 sm:opacity-0 sm:group-hover/member:opacity-100 shrink-0"
                                       aria-label={`Pindah posisi ${m.nama}`}
                                       title="Pindah Posisi / Jabatan"
                                     >
@@ -877,6 +877,17 @@ export default function StrukturPage() {
                         </td>
                         <td className="py-3 px-4 text-right no-print">
                           <div className="flex items-center justify-end gap-1.5">
+                            {canEditStruktur && (
+                              <button
+                                type="button"
+                                onClick={() => openMovePanitia(p)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                                aria-label={`Pindah posisi ${p.nama}`}
+                                title="Pindah Posisi / Jabatan"
+                              >
+                                <ArrowLeftRight className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <TableActionGroup
                               onEdit={() => openEditPanitia(p)}
                               onDelete={() => handleDeletePanitia(p.id, p.nama)}
@@ -904,14 +915,6 @@ export default function StrukturPage() {
                   Format hierarki resmi per seksi dan koordinator ({structureGroups.length} divisi / jabatan)
                 </p>
               </div>
-              <Button
-                variant="primary"
-                onClick={() => window.print()}
-                className="text-xs"
-              >
-                <Printer className="w-4 h-4 mr-1.5" />
-                Cetak / Simpan PDF
-              </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
