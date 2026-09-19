@@ -102,7 +102,7 @@ export function TugasModal({
                   }
                 }}
               >
-                <option value="">-- Pilih Seksi Pelaksana --</option>
+                <option value="">Pilih Seksi Pelaksana</option>
                 {(canCreateUmum || isKetua || isTugasUmum) && (
                   <option value="ALL">Seluruh Divisi (Tugas untuk Semua)</option>
                 )}
@@ -133,7 +133,7 @@ export function TugasModal({
                   value={form.pj_id}
                   onChange={(e) => setForm({ ...form, pj_id: e.target.value })}
                 >
-                  <option value="">-- Pilih Penanggung Jawab (Opsional) --</option>
+                  <option value="">Pilih Penanggung Jawab</option>
                   {panitiaList.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.nama} ({p.jabatan})

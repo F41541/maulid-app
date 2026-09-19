@@ -173,7 +173,7 @@ body {
 @media print {
   @page {
     margin: 1.2cm;
-    size: auto;
+    size: A4 portrait;
   }
 
   *,
@@ -191,6 +191,7 @@ body {
     max-width: 100% !important;
     width: 100% !important;
     overflow: visible !important;
+    font-size: 11pt;
   }
 
   .no-print,
@@ -204,6 +205,43 @@ body {
   .print-only,
   html body .print-only {
     display: block !important;
+  }
+
+  /* Professional Printable Table Styles (A4 Portrait) */
+  table.print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+    font-size: 9pt !important;
+  }
+
+  table.print-table thead {
+    display: table-header-group !important;
+  }
+
+  table.print-table tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  table.print-table th {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    font-size: 8pt !important;
+    letter-spacing: 0.05em !important;
+    border: 1px solid #94a3b8 !important;
+    padding: 6px 8px !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  table.print-table td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 5px 8px !important;
+    color: #0f172a !important;
+    vertical-align: top !important;
   }
 
   /* Force clean white background and clear text for cards and tables */

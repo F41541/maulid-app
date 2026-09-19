@@ -195,6 +195,8 @@ export async function POST(req: NextRequest) {
       await withTransaction(async (conn) => {
         // Detach panitia assigned to this seksi
         await conn.execute("UPDATE panitia SET seksi_id = NULL WHERE seksi_id = ?", [id]);
+        // Detach admin_users assigned to this seksi
+        await conn.execute("UPDATE admin_users SET seksi_id = NULL WHERE seksi_id = ?", [id]);
         await conn.execute("DELETE FROM seksi WHERE id = ?", [id]);
       });
 

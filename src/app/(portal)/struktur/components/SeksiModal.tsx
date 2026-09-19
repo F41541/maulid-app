@@ -66,7 +66,7 @@ export function SeksiModal({
             value={form.koordinator_id}
             onChange={(e) => setForm({ ...form, koordinator_id: e.target.value })}
           >
-            <option value="">-- Belum Ditentukan (Opsional) --</option>
+            <option value="">Belum Ditentukan</option>
             {panitiaList.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nama} ({p.jabatan})

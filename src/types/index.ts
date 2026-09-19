@@ -92,3 +92,32 @@ export interface UserItem {
   panitia_nama?: string | null;
   panitia_jabatan?: string | null;
 }
+
+export interface RabItem {
+  id: string;
+  seksi_id: string | null;
+  nama_seksi?: string | null;
+  nama_item: string;
+  volume: number;
+  satuan: string;
+  harga_satuan: number;
+  total_estimasi: number;
+  catatan?: string | null;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface RabSeksiGroup {
+  seksi_id: string | null;
+  nama_seksi: string;
+  items: RabItem[];
+  subtotal: number;
+  total_items: number;
+}
+
+export interface RabRingkasan {
+  totalAnggaran: number;
+  totalItem: number;
+  seksiCount: number;
+}

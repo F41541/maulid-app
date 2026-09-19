@@ -80,7 +80,7 @@ export function TamuModal({
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
               >
-                <option value="VIP">VIP (Default)</option>
+                <option value="VIP">VIP</option>
                 <option value="VVIP">VVIP</option>
                 <option value="Reguler">Reguler</option>
               </Select>
@@ -101,7 +101,7 @@ export function TamuModal({
               value={form.kehadiran}
               onChange={(e) => setForm({ ...form, kehadiran: e.target.value })}
             >
-              <option value="Hadir">Hadir (Default)</option>
+              <option value="Hadir">Hadir</option>
               <option value="Belum Konfirmasi">Belum Konfirmasi</option>
               <option value="Tidak Hadir">Tidak Hadir</option>
             </Select>

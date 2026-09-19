@@ -73,7 +73,7 @@ export function PanitiaModal({
                 value={form.jabatan}
                 onChange={(e) => setForm({ ...form, jabatan: e.target.value })}
               >
-                <option value="Anggota Seksi">Anggota Seksi (Default)</option>
+                <option value="Anggota Seksi">Anggota Seksi</option>
                 <option value="Koordinator Seksi">Koordinator Seksi</option>
                 <option value="Bendahara">Bendahara</option>
                 <option value="Sekretaris">Sekretaris</option>
@@ -89,7 +89,7 @@ export function PanitiaModal({
                 value={form.seksi_id}
                 onChange={(e) => setForm({ ...form, seksi_id: e.target.value })}
               >
-                <option value="">-- Tanpa Seksi (Utama) --</option>
+                <option value="">Tanpa Seksi</option>
                 {seksiList.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.nama_seksi}

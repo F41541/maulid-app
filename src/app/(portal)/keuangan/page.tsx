@@ -301,8 +301,9 @@ export default function KeuanganPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
-
-        {/* 3 Main Balance Cards (Cash, Rekening, Total) */}
+        {/* Konten Interaktif Layar */}
+        <div className="no-print">
+          {/* 3 Main Balance Cards (Cash, Rekening, Total) */}
         {/* Balance Cards: Total Saldo (Full Width, Warna Putih) diikuti Saldo Dompet & Saldo Rekening (Dibagi 2) */}
         <div className="space-y-5 mb-8">
           {/* Card 1: Total Semua Saldo (Full Width & Warna Putih) */}
@@ -668,6 +669,116 @@ export default function KeuanganPage() {
               onPageChange={setCurrentPage}
             />
           )}
+        </div>
+        </div>
+
+        {/* Tampilan Resmi Khusus Cetak / PDF (A4 Portrait Table) */}
+        <div className="hidden print:block print-only">
+          <div className="text-center mb-5 pb-3 border-b-2 border-slate-900">
+            <h1 className="text-base font-bold uppercase tracking-wider text-slate-900">
+              LAPORAN REKAPITULASI KEUANGAN KAS
+            </h1>
+            <h2 className="text-sm font-semibold uppercase text-slate-800">
+              PERINGATAN MAULID NABI MUHAMMAD SAW 1448 H / 2026 M
+            </h2>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Peringatan Hari Besar Islam (PHBI)
+            </p>
+          </div>
+
+          {/* Tabel 1: Ringkasan Posisi Kas */}
+          <div className="mb-6">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-900 mb-1.5">
+              I. Ringkasan Posisi Kas
+            </h3>
+            <table className="print-table w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 border border-slate-400">
+                  <th className="text-left py-1.5 px-3 border border-slate-400 font-bold">Kanal Kas</th>
+                  <th className="text-right py-1.5 px-3 border border-slate-400 font-bold">Total Masuk</th>
+                  <th className="text-right py-1.5 px-3 border border-slate-400 font-bold">Total Keluar</th>
+                  <th className="text-right py-1.5 px-3 border border-slate-400 font-bold">Sisa Saldo</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border border-slate-300">
+                  <td className="py-1.5 px-3 font-medium border border-slate-300">Dompet (Tunai / Cash)</td>
+                  <td className="py-1.5 px-3 text-right text-emerald-800 font-medium border border-slate-300">+{formatRupiah(ringkasan.cashMasuk)}</td>
+                  <td className="py-1.5 px-3 text-right text-rose-800 font-medium border border-slate-300">-{formatRupiah(ringkasan.cashKeluar)}</td>
+                  <td className="py-1.5 px-3 text-right font-bold text-slate-900 border border-slate-300">{formatRupiah(ringkasan.saldoCash)}</td>
+                </tr>
+                <tr className="border border-slate-300">
+                  <td className="py-1.5 px-3 font-medium border border-slate-300">Rekening Bank (Transfer)</td>
+                  <td className="py-1.5 px-3 text-right text-emerald-800 font-medium border border-slate-300">+{formatRupiah(ringkasan.transferMasuk)}</td>
+                  <td className="py-1.5 px-3 text-right text-rose-800 font-medium border border-slate-300">-{formatRupiah(ringkasan.transferKeluar)}</td>
+                  <td className="py-1.5 px-3 text-right font-bold text-slate-900 border border-slate-300">{formatRupiah(ringkasan.saldoRekening)}</td>
+                </tr>
+                <tr className="bg-slate-100 font-bold border border-slate-400">
+                  <td className="py-2 px-3 font-bold text-slate-950 border border-slate-400">TOTAL KESELURUHAN</td>
+                  <td className="py-2 px-3 text-right text-emerald-900 font-bold border border-slate-400">+{formatRupiah(ringkasan.totalMasuk)}</td>
+                  <td className="py-2 px-3 text-right text-rose-900 font-bold border border-slate-400">-{formatRupiah(ringkasan.totalKeluar)}</td>
+                  <td className="py-2 px-3 text-right font-black text-slate-950 text-sm border border-slate-400">{formatRupiah(ringkasan.saldoTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Tabel 2: Rincian Transaksi */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-900 mb-1.5">
+              II. Rincian Buku Kas ({transaksiList.length} transaksi)
+            </h3>
+            {transaksiList.length === 0 ? (
+              <p className="text-center py-6 text-xs text-slate-500 italic">
+                Belum ada catatan transaksi kas.
+              </p>
+            ) : (
+              <table className="print-table w-full border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 border border-slate-400">
+                    <th className="w-10 text-center py-2 px-2 border border-slate-400 font-bold">No</th>
+                    <th className="w-24 text-center py-2 px-2 border border-slate-400 font-bold">Tanggal</th>
+                    <th className="text-left py-2 px-3 border border-slate-400 font-bold">Keterangan / Uraian</th>
+                    <th className="w-20 text-center py-2 px-2 border border-slate-400 font-bold">Kanal</th>
+                    <th className="w-20 text-center py-2 px-2 border border-slate-400 font-bold">Tipe</th>
+                    <th className="w-28 text-right py-2 px-3 border border-slate-400 font-bold">Nominal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transaksiList.map((t, idx) => (
+                    <tr key={t.id} className="border border-slate-300">
+                      <td className="text-center py-1.5 px-2 font-medium border border-slate-300 align-top">{idx + 1}</td>
+                      <td className="text-center py-1.5 px-2 border border-slate-300 align-top">{formatTanggal(t.tanggal)}</td>
+                      <td className="py-1.5 px-3 border border-slate-300 align-top font-medium text-slate-900">{t.keterangan}</td>
+                      <td className="text-center py-1.5 px-2 border border-slate-300 align-top capitalize">{t.metode === "cash" ? "Tunai" : "Transfer"}</td>
+                      <td className="text-center py-1.5 px-2 border border-slate-300 align-top font-semibold">
+                        {t.tipe === "masuk" ? (
+                          <span className="text-emerald-800">Masuk</span>
+                        ) : (
+                          <span className="text-rose-800">Keluar</span>
+                        )}
+                      </td>
+                      <td className="text-right py-1.5 px-3 font-semibold border border-slate-300 align-top">
+                        {t.tipe === "masuk" ? `+${formatRupiah(t.nominal)}` : `-${formatRupiah(t.nominal)}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="mt-6 pt-3 border-t border-slate-300 flex justify-between items-center text-[10px] text-slate-600">
+            <span>Dicetak dari Aplikasi Manajemen Maulid Nabi</span>
+            <span>
+              Tanggal Cetak:{" "}
+              {new Date().toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+          </div>
         </div>
 
         {/* Floating Speed Dial Actions di Kanan Bawah */}

@@ -90,35 +90,39 @@ test("2. isSidebarRole correctly rejects non-Ketua/Wakil roles to use Bottom Bar
 });
 
 test("3. Navigation Menu items mapping according to role-based access", () => {
-  // Ketua gets full 7 modules (tested via exported getNavRoutes)
+  // Ketua gets full 8 modules (tested via exported getNavRoutes)
   const ketuaItems = getNavRoutes("ketua_panitia");
-  assert.equal(ketuaItems.length, 7);
+  assert.equal(ketuaItems.length, 8);
   assert.ok(ketuaItems.includes("/pengguna"), "Ketua Panitia must have access to /pengguna");
+  assert.ok(ketuaItems.includes("/rab"), "Ketua Panitia must have access to /rab");
 
-  // Ketua identified by jabatan 'Ketua' gets full 7 modules
+  // Ketua identified by jabatan 'Ketua' gets full 8 modules
   const ketuaByJabatan = getNavRoutes(undefined, "Ketua");
-  assert.equal(ketuaByJabatan.length, 7, "Ketua identified by jabatan must get all 7 modules");
+  assert.equal(ketuaByJabatan.length, 8, "Ketua identified by jabatan must get all 8 modules");
   assert.ok(ketuaByJabatan.includes("/pengguna"), "Ketua by jabatan must have /pengguna");
+  assert.ok(ketuaByJabatan.includes("/rab"), "Ketua by jabatan must have /rab");
 
-  // Wakil gets 6 modules (no /pengguna)
+  // Wakil gets 7 modules (no /pengguna)
   const wakilItems = getNavRoutes("wakil_ketua");
-  assert.equal(wakilItems.length, 6);
+  assert.equal(wakilItems.length, 7);
   assert.ok(!wakilItems.includes("/pengguna"), "Wakil must not have /pengguna");
   assert.ok(wakilItems.includes("/keuangan"), "Wakil must have /keuangan");
+  assert.ok(wakilItems.includes("/rab"), "Wakil must have /rab");
   assert.ok(wakilItems.includes("/tamu"), "Wakil must have /tamu");
 
-  // Wakil identified by Roman numeral 'Wakil Ketua I' gets 6 modules
+  // Wakil identified by Roman numeral 'Wakil Ketua I' gets 7 modules
   const wakilRoman = getNavRoutes(undefined, "Wakil Ketua I");
-  assert.equal(wakilRoman.length, 6, "Wakil Ketua I must get 6 modules");
+  assert.equal(wakilRoman.length, 7, "Wakil Ketua I must get 7 modules");
   assert.ok(!wakilRoman.includes("/pengguna"));
+  assert.ok(wakilRoman.includes("/rab"));
 
   // Wakil Bendahara must NOT receive Wakil Ketua modules; gets Bendahara modules
   const wakilBendahara = getNavRoutes(undefined, "Wakil Bendahara");
-  assert.deepEqual(wakilBendahara, ["/dashboard", "/keuangan", "/tugas"]);
+  assert.deepEqual(wakilBendahara, ["/dashboard", "/rab", "/keuangan", "/tugas"]);
 
-  // Bendahara gets 3 modules
+  // Bendahara gets 4 modules
   const bendaharaItems = getNavRoutes("bendahara");
-  assert.deepEqual(bendaharaItems, ["/dashboard", "/keuangan", "/tugas"]);
+  assert.deepEqual(bendaharaItems, ["/dashboard", "/rab", "/keuangan", "/tugas"]);
 
   // Sekretaris gets 4 modules
   const sekretarisItems = getNavRoutes("sekretaris");

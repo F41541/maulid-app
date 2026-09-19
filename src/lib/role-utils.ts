@@ -154,6 +154,7 @@ export function getNavRoutes(role?: string | null, jabatan?: string | null): str
       "/struktur",
       "/rundown",
       "/tugas",
+      "/rab",
       "/keuangan",
       "/tamu",
       "/pengguna",
@@ -161,7 +162,7 @@ export function getNavRoutes(role?: string | null, jabatan?: string | null): str
   }
 
   if (isWakilRole(role, jabatan)) {
-    return ["/dashboard", "/struktur", "/rundown", "/tugas", "/keuangan", "/tamu"];
+    return ["/dashboard", "/struktur", "/rundown", "/tugas", "/rab", "/keuangan", "/tamu"];
   }
 
   const normRole = (role || "").toLowerCase().replace(/[\s_-]+/g, "");
@@ -172,7 +173,7 @@ export function getNavRoutes(role?: string | null, jabatan?: string | null): str
   }
 
   if (normRole === "bendahara" || normJabatan.includes("bendahara")) {
-    return ["/dashboard", "/keuangan", "/tugas"];
+    return ["/dashboard", "/rab", "/keuangan", "/tugas"];
   }
 
   if (normRole === "koordinatorseksi" || normJabatan.includes("koordinator")) {

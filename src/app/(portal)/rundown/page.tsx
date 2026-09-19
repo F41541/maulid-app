@@ -172,114 +172,179 @@ export default function RundownPage() {
   return (
     <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
 
-        {/* Print Header */}
-        <div className="hidden print-only mb-6 text-center">
-          <h2 className="text-xl font-bold text-slate-900">
-            SUSUNAN ACARA MAULID NABI MUHAMMAD SAW
-          </h2>
-          <p className="text-xs text-slate-600">Panduan Tertib Pelaksanaan Acara</p>
-        </div>
-
-        {/* 5-State Resilience Handling */}
-        {loading ? (
-          <div className="space-y-4">
-            {Array.from({ length: 4 }).map((_, idx) => (
-              <SkeletonCard key={idx} />
-            ))}
-          </div>
-        ) : error ? (
-          <ErrorState message={error} onRetry={fetchData} className="my-6" />
-        ) : sortedItems.length === 0 ? (
-          <EmptyState
-            icon={CalendarCheck}
-            title="Belum Ada Susunan Acara"
-            description="Belum ada agenda atau susunan kegiatan yang dijadwalkan untuk acara ini."
-            actionLabel={canEditRundown ? "+ Tambah Rangkaian Acara" : undefined}
-            onAction={canEditRundown ? openAdd : undefined}
-          />
-        ) : (
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {sortedItems.map((item, index) => (
-                <div
-                  key={item.id}
-                  style={{ animationDelay: `${Math.min(index * 35, 350)}ms` }}
-                  className={`animate-stagger-item p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition group relative ${
-                    item.isPast
-                      ? "opacity-50 dark:opacity-40 grayscale bg-slate-50/40 dark:bg-slate-900/30"
-                      : "hover:bg-slate-50/60 dark:hover:bg-slate-800/50"
-                  }`}
-                >
-                  {/* Garis penyambung vertikal timeline ke urutan berikutnya (ada jeda/jangan nempel) */}
-                  {index < sortedItems.length - 1 && (
-                    <div
-                      aria-hidden="true"
-                      className="absolute left-[29px] sm:left-[33px] top-[52px] sm:top-[56px] -bottom-2 sm:-bottom-3 w-0.5 bg-slate-200 dark:bg-slate-700 rounded-full pointer-events-none z-0"
-                    />
-                  )}
-
-                  <div className="flex items-start gap-4 z-10">
-                    {/* Urutan badge tanpa tombol atas-bawah */}
-                    <div className="flex flex-col items-center justify-center shrink-0">
-                      <span className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center justify-center shadow-2xs border border-emerald-200 dark:border-emerald-800">
-                        {item.urutan}
-                      </span>
-                    </div>
-
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                          {item.hari ? formatTanggal(item.hari) : "Hari H"}
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          {item.waktu}
-                        </span>
-                        {item.isPast && (
-                          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                            Selesai / Lewat
-                          </span>
-                        )}
-                      </div>
-
-                      <h3
-                        className={`font-bold text-base ${
-                          item.isPast
-                            ? "line-through text-slate-500 dark:text-slate-400"
-                            : "text-slate-900 dark:text-white"
-                        }`}
-                      >
-                        {item.nama_kegiatan}
-                      </h3>
-
-                      {item.nama_pengisi && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 mt-1 font-medium">
-                          <Mic className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                          <span>Oleh: {item.nama_pengisi}</span>
-                        </div>
-                      )}
-
-                      {item.catatan && (
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800 italic">
-                          Catatan: {item.catatan}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {canEditRundown && (
-                    <TableActionGroup
-                      onEdit={() => openEdit(item)}
-                      onDelete={() => handleDelete(item.id, item.nama_kegiatan)}
-                      editTooltip="Edit kegiatan"
-                      deleteTooltip="Hapus kegiatan"
-                    />
-                  )}
-                </div>
+        {/* Konten Interaktif Layar */}
+        <div className="no-print">
+          {/* 5-State Resilience Handling */}
+          {loading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <SkeletonCard key={idx} />
               ))}
             </div>
+          ) : error ? (
+            <ErrorState message={error} onRetry={fetchData} className="my-6" />
+          ) : sortedItems.length === 0 ? (
+            <EmptyState
+              icon={CalendarCheck}
+              title="Belum Ada Susunan Acara"
+              description="Belum ada agenda atau susunan kegiatan yang dijadwalkan untuk acara ini."
+              actionLabel={canEditRundown ? "+ Tambah Rangkaian Acara" : undefined}
+              onAction={canEditRundown ? openAdd : undefined}
+            />
+          ) : (
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {sortedItems.map((item, index) => (
+                  <div
+                    key={item.id}
+                    style={{ animationDelay: `${Math.min(index * 35, 350)}ms` }}
+                    className={`animate-stagger-item p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition group relative ${
+                      item.isPast
+                        ? "opacity-50 dark:opacity-40 grayscale bg-slate-50/40 dark:bg-slate-900/30"
+                        : "hover:bg-slate-50/60 dark:hover:bg-slate-800/50"
+                    }`}
+                  >
+                    {/* Garis penyambung vertikal timeline ke urutan berikutnya (ada jeda/jangan nempel) */}
+                    {index < sortedItems.length - 1 && (
+                      <div
+                        aria-hidden="true"
+                        className="absolute left-[29px] sm:left-[33px] top-[52px] sm:top-[56px] -bottom-2 sm:-bottom-3 w-0.5 bg-slate-200 dark:bg-slate-700 rounded-full pointer-events-none z-0"
+                      />
+                    )}
+
+                    <div className="flex items-start gap-4 z-10">
+                      {/* Urutan badge tanpa tombol atas-bawah */}
+                      <div className="flex flex-col items-center justify-center shrink-0">
+                        <span className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center justify-center shadow-2xs border border-emerald-200 dark:border-emerald-800">
+                          {item.urutan}
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            {item.hari ? formatTanggal(item.hari) : "Hari H"}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            {item.waktu}
+                          </span>
+                          {item.isPast && (
+                            <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                              Selesai / Lewat
+                            </span>
+                          )}
+                        </div>
+
+                        <h3
+                          className={`font-bold text-base ${
+                            item.isPast
+                              ? "line-through text-slate-500 dark:text-slate-400"
+                              : "text-slate-900 dark:text-white"
+                          }`}
+                        >
+                          {item.nama_kegiatan}
+                        </h3>
+
+                        {item.nama_pengisi && (
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 mt-1 font-medium">
+                            <Mic className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Oleh: {item.nama_pengisi}</span>
+                          </div>
+                        )}
+
+                        {item.catatan && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800 italic">
+                            Catatan: {item.catatan}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {canEditRundown && (
+                      <TableActionGroup
+                        onEdit={() => openEdit(item)}
+                        onDelete={() => handleDelete(item.id, item.nama_kegiatan)}
+                        editTooltip="Edit kegiatan"
+                        deleteTooltip="Hapus kegiatan"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Tampilan Resmi Khusus Cetak / PDF (A4 Portrait Table) */}
+        <div className="hidden print:block print-only">
+          <div className="text-center mb-5 pb-3 border-b-2 border-slate-900">
+            <h1 className="text-base font-bold uppercase tracking-wider text-slate-900">
+              SUSUNAN ACARA &amp; RUNDOWN KEGIATAN
+            </h1>
+            <h2 className="text-sm font-semibold uppercase text-slate-800">
+              PERINGATAN MAULID NABI MUHAMMAD SAW 1448 H / 2026 M
+            </h2>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Panduan Tertib Pelaksanaan Acara
+            </p>
           </div>
-        )}
+
+          {sortedItems.length === 0 ? (
+            <p className="text-center py-8 text-xs text-slate-500 italic">
+              Belum ada agenda susunan acara.
+            </p>
+          ) : (
+            <table className="print-table w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 border border-slate-400">
+                  <th className="w-10 text-center py-2 px-2 border border-slate-400 font-bold">No</th>
+                  <th className="w-24 text-center py-2 px-2 border border-slate-400 font-bold">Waktu</th>
+                  <th className="w-32 text-left py-2 px-3 border border-slate-400 font-bold">Hari / Tanggal</th>
+                  <th className="text-left py-2 px-3 border border-slate-400 font-bold">Nama Agenda / Kegiatan</th>
+                  <th className="w-44 text-left py-2 px-3 border border-slate-400 font-bold">Pengisi Acara / PJ</th>
+                  <th className="w-40 text-left py-2 px-3 border border-slate-400 font-bold">Catatan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedItems.map((item, idx) => (
+                  <tr key={item.id} className="border border-slate-300">
+                    <td className="text-center py-2 px-2 font-medium border border-slate-300 align-top">
+                      {item.urutan || idx + 1}
+                    </td>
+                    <td className="text-center py-2 px-2 font-mono font-semibold border border-slate-300 align-top">
+                      {item.waktu}
+                    </td>
+                    <td className="py-2 px-3 border border-slate-300 align-top">
+                      {item.hari ? formatTanggal(item.hari) : "Hari H"}
+                    </td>
+                    <td className="py-2 px-3 font-semibold text-slate-900 border border-slate-300 align-top">
+                      {item.nama_kegiatan}
+                    </td>
+                    <td className="py-2 px-3 border border-slate-300 align-top">
+                      {item.nama_pengisi || "-"}
+                    </td>
+                    <td className="py-2 px-3 text-slate-600 border border-slate-300 align-top italic">
+                      {item.catatan || "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <div className="mt-6 pt-3 border-t border-slate-300 flex justify-between items-center text-[10px] text-slate-600">
+            <span>Dicetak dari Aplikasi Manajemen Maulid Nabi</span>
+            <span>
+              Tanggal Cetak:{" "}
+              {new Date().toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+          </div>
+        </div>
 
         {/* Floating Speed Dial Actions di Kanan Bawah */}
         <SpeedDialActions

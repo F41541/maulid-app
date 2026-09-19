@@ -138,7 +138,15 @@ export function BuatAkunModal({
           />
         </FormField>
 
-        <FormField label="Hak Akses (Role)" required>
+        <FormField
+          label="Hak Akses (Role)"
+          required
+          hint={
+            panitia.jabatan === "Anggota Seksi"
+              ? "Anggota seksi secara default diberikan akses login Koordinator Seksi (sesuaikan jika dibutuhkan)."
+              : undefined
+          }
+        >
           <Select
             value={role}
             onChange={(e) => setRole(e.target.value)}

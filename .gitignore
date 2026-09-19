@@ -50,3 +50,5 @@ public/uploads/*
 # agents
 .agents/
 
+# database backups
+backups/

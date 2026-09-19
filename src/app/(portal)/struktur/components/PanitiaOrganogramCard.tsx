@@ -1,5 +1,5 @@
 import React from "react";
-import { Edit2, UserCheck } from "lucide-react";
+import { Edit2, UserCheck, ArrowLeftRight } from "lucide-react";
 import { Panitia } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ export interface PanitiaOrganogramCardProps {
   variant?: "amber" | "emerald" | "blue" | "teal";
   isKetua?: boolean;
   onEdit?: (panitia: Panitia) => void;
+  onMove?: (panitia: Panitia) => void;
   className?: string;
 }
 
@@ -51,6 +52,7 @@ export function PanitiaOrganogramCard({
   variant = "amber",
   isKetua = false,
   onEdit,
+  onMove,
   className,
 }: PanitiaOrganogramCardProps) {
   const styles = variantStyles[variant];
@@ -82,16 +84,30 @@ export function PanitiaOrganogramCard({
               <div className={cn("border-t my-2.5", styles.accountBorder)} />
             )}
 
-            {onEdit && (
-              <div className="absolute top-0 right-0 flex gap-1 opacity-0 group-hover/person:opacity-100 transition no-print">
-                <button
-                  type="button"
-                  onClick={() => onEdit(p)}
-                  className={cn("p-1 rounded transition cursor-pointer", styles.editBtn)}
-                  aria-label={`Edit ${p.nama}`}
-                >
-                  <Edit2 className="w-3 h-3" />
-                </button>
+            {(onEdit || onMove) && (
+              <div className="absolute top-0 right-0 flex items-center gap-1 opacity-0 group-hover/person:opacity-100 transition no-print">
+                {onMove && (
+                  <button
+                    type="button"
+                    onClick={() => onMove(p)}
+                    className={cn("p-1 rounded transition cursor-pointer", styles.editBtn)}
+                    aria-label={`Pindah posisi ${p.nama}`}
+                    title="Pindah Posisi / Jabatan"
+                  >
+                    <ArrowLeftRight className="w-3 h-3" />
+                  </button>
+                )}
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={() => onEdit(p)}
+                    className={cn("p-1 rounded transition cursor-pointer", styles.editBtn)}
+                    aria-label={`Edit ${p.nama}`}
+                    title="Edit Data Panitia"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             )}
 

@@ -115,7 +115,7 @@ export function EditUserModal({
               onChange={(e) => handleRoleChange(e.target.value)}
               required
             >
-              <option value="">-- Pilih Peran / Hak Akses --</option>
+              <option value="">Pilih Peran / Hak Akses</option>
               {roleOptions.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
@@ -141,8 +141,8 @@ export function EditUserModal({
             >
               <option value="">
                 {isKoordinatorAcara
-                  ? "-- Pilih Seksi --"
-                  : "-- Hanya aktif jika Koordinator Acara / Seksi --"}
+                  ? "Pilih Seksi"
+                  : "Hanya aktif jika Koordinator Acara / Seksi"}
               </option>
               {seksiList.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -169,7 +169,7 @@ export function EditUserModal({
                 }));
               }}
             >
-              <option value="">-- Pilih Anggota Panitia (Opsional) --</option>
+              <option value="">Pilih Anggota Panitia</option>
               {panitiaList?.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nama} ({p.jabatan}{p.nama_seksi ? ` — ${p.nama_seksi}` : ""})

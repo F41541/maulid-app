@@ -230,9 +230,10 @@ export default function TamuPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
-
-        {/* Stats Grid */}
-        {stats && (
+        {/* Konten Interaktif Layar */}
+        <div className="no-print">
+          {/* Stats Grid */}
+          {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <StatCard
               compact
@@ -419,6 +420,108 @@ export default function TamuPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+        </div>
+
+        {/* Tampilan Resmi Khusus Cetak / PDF (A4 Portrait Table) */}
+        <div className="hidden print:block print-only">
+          <div className="text-center mb-5 pb-3 border-b-2 border-slate-900">
+            <h1 className="text-base font-bold uppercase tracking-wider text-slate-900">
+              DAFTAR TAMU UNDANGAN &amp; STATUS KEHADIRAN
+            </h1>
+            <h2 className="text-sm font-semibold uppercase text-slate-800">
+              PERINGATAN MAULID NABI MUHAMMAD SAW 1448 H / 2026 M
+            </h2>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Peringatan Hari Besar Islam (PHBI)
+            </p>
+          </div>
+
+          {/* Tabel 1: Rekapitulasi Tamu Undangan */}
+          <div className="mb-6">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-900 mb-1.5">
+              I. Rekapitulasi Tamu Undangan
+            </h3>
+            <table className="print-table w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 border border-slate-400">
+                  <th className="text-center py-1.5 px-3 border border-slate-400 font-bold">Total Tamu</th>
+                  <th className="text-center py-1.5 px-3 border border-slate-400 font-bold">VVIP &amp; VIP</th>
+                  <th className="text-center py-1.5 px-3 border border-slate-400 font-bold">Terkonfirmasi Hadir</th>
+                  <th className="text-center py-1.5 px-3 border border-slate-400 font-bold">Belum Konfirmasi</th>
+                  <th className="text-center py-1.5 px-3 border border-slate-400 font-bold">Tidak Hadir</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border border-slate-300 text-center font-semibold">
+                  <td className="py-1.5 px-3 border border-slate-300">{stats?.total || 0} Orang</td>
+                  <td className="py-1.5 px-3 border border-slate-300 text-amber-800">{(stats?.vvip || 0) + (stats?.vip || 0)} Orang</td>
+                  <td className="py-1.5 px-3 border border-slate-300 text-emerald-800">{stats?.hadir || 0} Orang</td>
+                  <td className="py-1.5 px-3 border border-slate-300 text-slate-700">{stats?.belum_konfirmasi || 0} Orang</td>
+                  <td className="py-1.5 px-3 border border-slate-300 text-rose-800">{stats?.tidak_hadir || 0} Orang</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Tabel 2: Daftar Nama Tamu Undangan */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-900 mb-1.5">
+              II. Daftar Tamu Undangan ({tamuList.length} orang)
+            </h3>
+            {tamuList.length === 0 ? (
+              <p className="text-center py-6 text-xs text-slate-500 italic">
+                Belum ada data tamu undangan.
+              </p>
+            ) : (
+              <table className="print-table w-full border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 border border-slate-400">
+                    <th className="w-10 text-center py-2 px-2 border border-slate-400 font-bold">No</th>
+                    <th className="text-left py-2 px-3 border border-slate-400 font-bold">Nama Lengkap</th>
+                    <th className="w-20 text-center py-2 px-2 border border-slate-400 font-bold">Kategori</th>
+                    <th className="w-48 text-left py-2 px-3 border border-slate-400 font-bold">Alamat / Instansi</th>
+                    <th className="w-36 text-left py-2 px-3 border border-slate-400 font-bold">Undangan Dari</th>
+                    <th className="w-32 text-center py-2 px-2 border border-slate-400 font-bold">Kehadiran</th>
+                    <th className="w-40 text-left py-2 px-3 border border-slate-400 font-bold">Catatan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tamuList.map((t, idx) => (
+                    <tr key={t.id} className="border border-slate-300">
+                      <td className="text-center py-1.5 px-2 font-medium border border-slate-300 align-top">{idx + 1}</td>
+                      <td className="py-1.5 px-3 font-semibold text-slate-900 border border-slate-300 align-top">{t.nama}</td>
+                      <td className="text-center py-1.5 px-2 border border-slate-300 align-top font-medium">{t.status}</td>
+                      <td className="py-1.5 px-3 border border-slate-300 align-top">{t.alamat || "-"}</td>
+                      <td className="py-1.5 px-3 border border-slate-300 align-top">{t.pengundang || "-"}</td>
+                      <td className="text-center py-1.5 px-2 font-medium border border-slate-300 align-top">
+                        {t.kehadiran === "Hadir" ? (
+                          <span className="text-emerald-800 font-bold">Hadir</span>
+                        ) : t.kehadiran === "Tidak Hadir" ? (
+                          <span className="text-rose-800 font-bold">Tidak Hadir</span>
+                        ) : (
+                          <span className="text-slate-600">Belum Konfirmasi</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 px-3 text-slate-600 border border-slate-300 align-top italic">{t.catatan || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="mt-6 pt-3 border-t border-slate-300 flex justify-between items-center text-[10px] text-slate-600">
+            <span>Dicetak dari Aplikasi Manajemen Maulid Nabi</span>
+            <span>
+              Tanggal Cetak:{" "}
+              {new Date().toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
           </div>
         </div>
 
