@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Calculator,
   Plus,
+  Printer,
+  FileSpreadsheet,
   LayoutGrid,
   List,
   Search,
@@ -12,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { SpeedDialActions } from "@/components/shared/SpeedDialActions";
 import { TableActionGroup } from "@/components/shared/TableActionGroup";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -652,6 +655,30 @@ export default function RabPage() {
         totalAnggaran={ringkasan.totalAnggaran}
       />
 
+      {/* Floating Speed Dial Actions di Kanan Bawah untuk Akses Cepat Mobile */}
+      <SpeedDialActions
+        triggerLabel="Aksi RAB"
+        actions={[
+          {
+            label: "Cetak Dokumen",
+            icon: Printer,
+            variant: "secondary",
+            onClick: () => window.print(),
+          },
+          {
+            label: "Ekspor Excel (.xlsx)",
+            icon: FileSpreadsheet,
+            variant: "outline",
+            onClick: handleExportExcel,
+          },
+          {
+            label: "Tambah Kebutuhan",
+            icon: Plus,
+            variant: "primary",
+            onClick: () => openAdd("umum"),
+          },
+        ]}
+      />
 
       {/* Subcomponent Modal Tambah / Edit */}
       <RabModal
