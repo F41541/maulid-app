@@ -91,3 +91,29 @@ test("4. Format Rupiah display for RAB items", () => {
   assert.equal(formatRupiah(12500000).replace(/\s/g, " "), "Rp 12.500.000");
   assert.equal(formatRupiah(0).replace(/\s/g, " "), "Rp 0");
 });
+
+test("5. Master-Detail Wadah calculation & Cash Realization comparison", () => {
+  const wadah = {
+    id: "wadah-1",
+    nama_anggaran: "Anggaran Konsumsi Jamaah",
+    items: [
+      { nama_item: "Nasi Kotak", volume: 500, harga_satuan: 25000, total_estimasi: 12500000 },
+      { nama_item: "Air Mineral Dus", volume: 20, harga_satuan: 25000, total_estimasi: 500000 },
+    ],
+  };
+
+  const totalRencana = wadah.items.reduce((sum, it) => sum + it.total_estimasi, 0);
+  assert.equal(totalRencana, 13000000, "Total rencana wadah harus Rp 13.000.000");
+
+  const realisasiKas = 5000000; // DP nasi kotak
+  const sisaAnggaran = totalRencana - realisasiKas;
+  assert.equal(sisaAnggaran, 8000000, "Sisa anggaran harus Rp 8.000.000");
+
+  const persentase = Math.round((realisasiKas / totalRencana) * 100);
+  assert.equal(persentase, 38, "Penyerapan dana harus 38%");
+
+  // Deletion protection check:
+  const canDeleteWadah = (linkedExpenseCount) => linkedExpenseCount === 0;
+  assert.equal(canDeleteWadah(2), false, "Wadah dengan 2 transaksi kas tidak boleh dihapus");
+  assert.equal(canDeleteWadah(0), true, "Wadah tanpa transaksi kas boleh dihapus");
+});

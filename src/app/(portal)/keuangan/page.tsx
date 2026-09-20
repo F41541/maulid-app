@@ -72,12 +72,14 @@ export default function KeuanganPage() {
 
   // Modal Transaksi biasa
   const [modalOpen, setModalOpen] = useState(false);
+  const [rabList, setRabList] = useState<Array<{ id: string; nama_anggaran: string }>>([]);
   const [form, setForm] = useState({
     tipe: "masuk" as "masuk" | "keluar",
     tanggal: getTodayString(),
     keterangan: "",
     nominal: "",
     metode: "cash" as "cash" | "transfer",
+    rab_id: "",
   });
 
   // Modal Mutasi Internal (Cash <-> Rekening)
@@ -94,6 +96,18 @@ export default function KeuanganPage() {
   const [modalVoidOpen, setModalVoidOpen] = useState(false);
   const [voidTarget, setVoidTarget] = useState<Transaksi | null>(null);
   const [voidReason, setVoidReason] = useState("");
+
+  const fetchRabList = useCallback(async () => {
+    try {
+      const res = await fetch("/api/rab");
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.wadah) {
+          setRabList(data.wadah.map((w: any) => ({ id: w.id, nama_anggaran: w.nama_anggaran })));
+        }
+      }
+    } catch {}
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -135,7 +149,8 @@ export default function KeuanganPage() {
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchRabList();
+  }, [fetchData, fetchRabList]);
 
   // Derived pagination list
   const totalPages = Math.max(1, Math.ceil(transaksiList.length / itemsPerPage));
@@ -151,12 +166,19 @@ export default function KeuanganPage() {
       keterangan: "",
       nominal: "",
       metode: defaultMetode,
+      rab_id: "",
     });
+    fetchRabList();
     setModalOpen(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.tipe === "keluar" && rabList.length > 0 && !form.rab_id) {
+      toast.error("Silakan pilih Wadah Anggaran (RAB) untuk pengeluaran ini");
+      return;
+    }
+
     try {
       const res = await fetch("/api/keuangan", {
         method: "POST",
@@ -595,13 +617,20 @@ export default function KeuanganPage() {
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex flex-col">
-                            <span
-                              className={`font-semibold text-slate-800 dark:text-slate-200 ${
-                                isVoid ? "line-through text-slate-400 dark:text-slate-500" : ""
-                              }`}
-                            >
-                              {t.keterangan}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`font-semibold text-slate-800 dark:text-slate-200 ${
+                                  isVoid ? "line-through text-slate-400 dark:text-slate-500" : ""
+                                }`}
+                              >
+                                {t.keterangan}
+                              </span>
+                              {t.tipe === "keluar" && t.nama_anggaran && (
+                                <span className="text-[10px] inline-flex items-center font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded">
+                                  {t.nama_anggaran}
+                                </span>
+                              )}
+                            </div>
                             {t.kategori === "mutasi_internal" && (
                               <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
                                 ⇄ Mutasi Internal
@@ -823,6 +852,7 @@ export default function KeuanganPage() {
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
           onSubmit={handleSave}
+          rabList={rabList}
           form={form}
           setForm={setForm}
         />

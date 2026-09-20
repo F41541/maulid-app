@@ -6,13 +6,15 @@ import {
   Plus,
   Printer,
   FileSpreadsheet,
-  LayoutGrid,
-  List,
   Search,
-  Layers,
   Sparkles,
   ChevronDown,
   ChevronUp,
+  CreditCard,
+  Layers,
+  TrendingUp,
+  AlertCircle,
+  RotateCcw,
 } from "lucide-react";
 import { SpeedDialActions } from "@/components/shared/SpeedDialActions";
 import { TableActionGroup } from "@/components/shared/TableActionGroup";
@@ -21,17 +23,26 @@ import { Badge } from "@/components/ui/Badge";
 import { SkeletonTableRow } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import Pagination from "@/components/ui/Pagination";
 import { formatRupiah, getTodayString } from "@/lib/format";
 import { exportToExcel, sanitizeFormula } from "@/lib/excel-export";
 import { useToast } from "@/lib/toast";
 import { useConfirm } from "@/lib/use-confirm";
-import { RabModal, RabFormData } from "./components/RabModal";
+import {
+  RabWadahModal,
+  RabWadahFormData,
+  RabItemModal,
+  RabItemFormData,
+} from "./components/RabModal";
 import { RabPrintView } from "./components/RabPrintView";
-import { RabItem, RabSeksiGroup, RabRingkasan } from "@/types";
+import { RabWadah, RabItemDetail, RabRingkasanGlobal } from "@/types";
 
-const INITIAL_FORM: RabFormData = {
-  seksi_id: "umum",
+const INITIAL_WADAH_FORM: RabWadahFormData = {
+  nama_anggaran: "",
+  catatan: "",
+};
+
+const INITIAL_ITEM_FORM: RabItemFormData = {
+  rab_id: "",
   nama_item: "",
   volume: "1",
   satuan: "pcs",
@@ -43,42 +54,41 @@ export default function RabPage() {
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
 
-  const [items, setItems] = useState<RabItem[]>([]);
-  const [groups, setGroups] = useState<RabSeksiGroup[]>([]);
-  const [ringkasan, setRingkasan] = useState<RabRingkasan>({
-    totalAnggaran: 0,
-    totalItem: 0,
-    seksiCount: 0,
+  const [wadahList, setWadahList] = useState<RabWadah[]>([]);
+  const [ringkasan, setRingkasan] = useState<RabRingkasanGlobal>({
+    totalRencana: 0,
+    totalRealisasi: 0,
+    sisaAnggaran: 0,
+    persentaseRealisasi: 0,
+    totalWadah: 0,
+    totalItems: 0,
   });
-  const [seksiList, setSeksiList] = useState<Array<{ id: string; nama_seksi: string }>>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Filters
-  const [filterSeksi, setFilterSeksi] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"grouped" | "flat">("grouped");
 
-  // Collapsed sections in grouped view
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  // Accordion collapsed state per wadah
+  const [collapsedWadah, setCollapsedWadah] = useState<Record<string, boolean>>({});
 
-  // Pagination for flat table
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  // 1. Modal Wadah State
+  const [wadahModalOpen, setWadahModalOpen] = useState(false);
+  const [isEditingWadah, setIsEditingWadah] = useState(false);
+  const [submittingWadah, setSubmittingWadah] = useState(false);
+  const [wadahForm, setWadahForm] = useState<RabWadahFormData>(INITIAL_WADAH_FORM);
 
-  // Modal State
-  const [modalOpen, setModalOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState<RabFormData>(INITIAL_FORM);
+  // 2. Modal Item State
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [isEditingItem, setIsEditingItem] = useState(false);
+  const [submittingItem, setSubmittingItem] = useState(false);
+  const [activeWadahName, setActiveWadahName] = useState("");
+  const [itemForm, setItemForm] = useState<RabItemFormData>(INITIAL_ITEM_FORM);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (filterSeksi !== "all") params.append("seksi_id", filterSeksi);
       if (searchQuery.trim()) params.append("q", searchQuery.trim());
 
       const res = await fetch(`/api/rab?${params.toString()}`);
@@ -89,16 +99,17 @@ export default function RabPage() {
         throw new Error("Gagal memuat data Rencana Anggaran Biaya.");
       }
       const data = await res.json();
-      setItems(data.items || []);
-      setGroups(data.groups || []);
+      setWadahList(data.wadah || []);
       setRingkasan(
         data.ringkasan || {
-          totalAnggaran: 0,
-          totalItem: 0,
-          seksiCount: 0,
+          totalRencana: 0,
+          totalRealisasi: 0,
+          sisaAnggaran: 0,
+          persentaseRealisasi: 0,
+          totalWadah: 0,
+          totalItems: 0,
         }
       );
-      setSeksiList(data.seksiList || []);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan sistem saat memuat RAB";
       setError(msg);
@@ -106,73 +117,142 @@ export default function RabPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterSeksi, searchQuery, toast]);
+  }, [searchQuery, toast]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Toggle collapse state for a group
-  const toggleGroup = (key: string) => {
-    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  // Toggle collapse state for a wadah card
+  const toggleWadah = (id: string) => {
+    setCollapsedWadah((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Open modal for new item
-  const openAdd = (defaultSeksiId: string = "umum") => {
-    setForm({
-      ...INITIAL_FORM,
-      seksi_id: defaultSeksiId,
+  // --- WADAH HANDLERS ---
+  const openAddWadah = () => {
+    setWadahForm(INITIAL_WADAH_FORM);
+    setIsEditingWadah(false);
+    setWadahModalOpen(true);
+  };
+
+  const openEditWadah = (w: RabWadah) => {
+    setWadahForm({
+      id: w.id,
+      nama_anggaran: w.nama_anggaran,
+      catatan: w.catatan || "",
     });
-    setIsEditing(false);
-    setModalOpen(true);
+    setIsEditingWadah(true);
+    setWadahModalOpen(true);
   };
 
-  // Open modal for editing existing item
-  const openEdit = (item: RabItem) => {
-    setForm({
+  const handleSaveWadah = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingWadah(true);
+    try {
+      const action = isEditingWadah ? "update_wadah" : "create_wadah";
+      const res = await fetch("/api/rab", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...wadahForm }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal menyimpan wadah anggaran");
+      } else {
+        toast.success(isEditingWadah ? "Wadah anggaran berhasil diperbarui" : "Wadah anggaran berhasil dibuat");
+        setWadahModalOpen(false);
+        fetchData();
+      }
+    } catch {
+      toast.error("Terjadi kesalahan sistem");
+    } finally {
+      setSubmittingWadah(false);
+    }
+  };
+
+  const handleDeleteWadah = async (w: RabWadah) => {
+    const ok = await confirm({
+      title: "Hapus Wadah Anggaran?",
+      message: `Apakah Anda yakin ingin menghapus wadah "${w.nama_anggaran}"? Seluruh rincian kebutuhan di dalamnya juga akan terhapus.`,
+      confirmText: "Hapus Wadah",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    try {
+      const res = await fetch("/api/rab", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_wadah", id: w.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal menghapus wadah anggaran");
+      } else {
+        toast.success("Wadah anggaran berhasil dihapus");
+        fetchData();
+      }
+    } catch {
+      toast.error("Terjadi kesalahan sistem saat menghapus");
+    }
+  };
+
+  // --- ITEM HANDLERS ---
+  const openAddItem = (w: RabWadah) => {
+    setActiveWadahName(w.nama_anggaran);
+    setItemForm({
+      ...INITIAL_ITEM_FORM,
+      rab_id: w.id,
+    });
+    setIsEditingItem(false);
+    setItemModalOpen(true);
+  };
+
+  const openEditItem = (w: RabWadah, item: RabItemDetail) => {
+    setActiveWadahName(w.nama_anggaran);
+    setItemForm({
       id: item.id,
-      seksi_id: item.seksi_id || "umum",
+      rab_id: item.rab_id,
       nama_item: item.nama_item,
       volume: String(item.volume),
       satuan: item.satuan,
       harga_satuan: String(item.harga_satuan),
       catatan: item.catatan || "",
     });
-    setIsEditing(true);
-    setModalOpen(true);
+    setIsEditingItem(true);
+    setItemModalOpen(true);
   };
 
-  // Handle Save (Create / Update)
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
+    setSubmittingItem(true);
     try {
-      const action = isEditing ? "update" : "create";
+      const action = isEditingItem ? "update_item" : "create_item";
       const res = await fetch("/api/rab", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...form }),
+        body: JSON.stringify({ action, ...itemForm }),
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Gagal menyimpan item anggaran");
+        toast.error(data.error || "Gagal menyimpan rincian kebutuhan");
       } else {
-        toast.success(isEditing ? "Item anggaran berhasil diperbarui" : "Item berhasil ditambahkan ke RAB");
-        setModalOpen(false);
+        toast.success(isEditingItem ? "Rincian kebutuhan diperbarui" : "Kebutuhan berhasil ditambahkan");
+        setItemModalOpen(false);
         fetchData();
       }
     } catch {
-      toast.error("Terjadi kesalahan sistem saat menyimpan");
+      toast.error("Terjadi kesalahan sistem");
     } finally {
-      setSubmitting(false);
+      setSubmittingItem(false);
     }
   };
 
-  // Handle Delete with Confirmation Dialog
-  const handleDelete = async (item: RabItem) => {
+  const handleDeleteItem = async (item: RabItemDetail) => {
     const ok = await confirm({
-      title: "Hapus Item Anggaran?",
-      message: `Apakah Anda yakin ingin menghapus "${item.nama_item}" senilai ${formatRupiah(item.total_estimasi)} dari RAB?`,
+      title: "Hapus Rincian Kebutuhan?",
+      message: `Hapus "${item.nama_item}" senilai ${formatRupiah(item.total_estimasi)}?`,
       confirmText: "Hapus",
       cancelText: "Batal",
       variant: "danger",
@@ -183,13 +263,13 @@ export default function RabPage() {
       const res = await fetch("/api/rab", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", id: item.id }),
+        body: JSON.stringify({ action: "delete_item", id: item.id }),
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Gagal menghapus item anggaran");
+        toast.error(data.error || "Gagal menghapus item");
       } else {
-        toast.success("Item anggaran berhasil dihapus");
+        toast.success("Rincian kebutuhan berhasil dihapus");
         fetchData();
       }
     } catch {
@@ -197,99 +277,182 @@ export default function RabPage() {
     }
   };
 
+  // Reset RAB Data
+  const handleResetRab = async () => {
+    const ok = await confirm({
+      title: "Reset Seluruh Data RAB?",
+      message: "Tindakan ini akan mengosongkan seluruh wadah anggaran dan rincian kebutuhan RAB. Pengeluaran kas tidak akan terhapus namun relasi wadahnya akan dilepas.",
+      confirmText: "Reset Bersih",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    try {
+      const res = await fetch("/api/rab", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset_rab" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal mereset data RAB");
+      } else {
+        toast.success("Data RAB berhasil direset bersih");
+        fetchData();
+      }
+    } catch {
+      toast.error("Terjadi kesalahan sistem saat reset");
+    }
+  };
+
   // Export to Excel
   const handleExportExcel = () => {
-    if (items.length === 0) {
+    if (wadahList.length === 0) {
       toast.error("Tidak ada data anggaran untuk diekspor");
       return;
     }
 
     try {
-      const rows = items.map((it, idx) => [
-        idx + 1,
-        sanitizeFormula(it.nama_seksi || "Umum / Kepanitiaan"),
-        sanitizeFormula(it.nama_item),
-        Number(it.volume),
-        sanitizeFormula(it.satuan),
-        Number(it.harga_satuan),
-        Number(it.total_estimasi),
-        sanitizeFormula(it.catatan || "-"),
+      const rows: (string | number)[][] = [];
+      let globalIdx = 1;
+
+      for (const w of wadahList) {
+        rows.push([
+          `[POS: ${w.nama_anggaran.toUpperCase()}]`,
+          "",
+          "",
+          "",
+          "",
+          "",
+          `Rencana: ${formatRupiah(w.total_rencana)} | Kas: ${formatRupiah(w.total_realisasi)}`,
+        ]);
+
+        const items = w.items || [];
+        for (const it of items) {
+          rows.push([
+            globalIdx++,
+            sanitizeFormula(w.nama_anggaran),
+            sanitizeFormula(it.nama_item),
+            Number(it.volume),
+            sanitizeFormula(it.satuan),
+            Number(it.harga_satuan),
+            Number(it.total_estimasi),
+            sanitizeFormula(it.catatan || "-"),
+          ]);
+        }
+        rows.push([]);
+      }
+
+      rows.push([
+        "",
+        "",
+        "",
+        "",
+        "",
+        "TOTAL RENCANA ANGGARAN",
+        ringkasan.totalRencana,
+      ]);
+      rows.push([
+        "",
+        "",
+        "",
+        "",
+        "",
+        "TOTAL REALISASI KAS",
+        ringkasan.totalRealisasi,
+      ]);
+      rows.push([
+        "",
+        "",
+        "",
+        "",
+        "",
+        "SISA ANGGARAN",
+        ringkasan.sisaAnggaran,
       ]);
 
       const worksheetData = [
-        ["No", "Seksi", "Uraian Kebutuhan", "Volume", "Satuan", "Harga Satuan (Rp)", "Total Biaya (Rp)", "Catatan"],
+        ["No", "Wadah Anggaran", "Uraian Kebutuhan", "Volume", "Satuan", "Harga Satuan (Rp)", "Total Biaya (Rp)", "Catatan"],
         ...rows,
-        [],
-        ["", "", "", "", "", "TOTAL KESELURUHAN", ringkasan.totalAnggaran, ""],
       ];
 
       exportToExcel({
-        sheetName: "RAB Maulid",
+        sheetName: "RAB & Realisasi",
         fileName: `rab-maulid-1448h-${getTodayString()}.xlsx`,
         data: worksheetData,
       });
-      toast.success(`Berhasil mengekspor ${items.length} item RAB ke Excel`);
+      toast.success(`Berhasil mengekspor data RAB ke Excel`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal mengekspor data ke Excel";
       toast.error(msg);
     }
   };
 
-  // Derived pagination for Flat View
-  const totalPages = Math.max(1, Math.ceil(items.length / itemsPerPage));
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [totalPages, currentPage]);
-
-  const paginatedItems = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return items.slice(start, start + itemsPerPage);
-  }, [items, currentPage, itemsPerPage]);
-
   return (
     <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
       {/* Konten Interaktif Layar */}
       <div className="no-print">
-        {/* Switch Modern Mode Tampilan: Per Seksi / Tabel Rata (Mengikuti gaya /struktur) */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
-          <div className="inline-flex p-1 rounded-2xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300/70 dark:border-slate-700 shadow-xs">
-            <button
+        {/* Header Halaman */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
+              <Calculator className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600 dark:text-emerald-400" />
+              Rencana Anggaran Biaya (RAB)
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Perencanaan pos anggaran dinamis dan pemantauan realisasi pengeluaran kas maulid.
+            </p>
+          </div>
+
+          {/* Tombol Aksi Desktop */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <Button
               type="button"
-              role="tab"
-              aria-selected={viewMode === "grouped"}
-              onClick={() => setViewMode("grouped")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer min-h-[40px] ${
-                viewMode === "grouped"
-                  ? "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
+              variant="outline"
+              onClick={() => window.print()}
+              className="hidden sm:inline-flex items-center gap-2"
             >
-              <LayoutGrid className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Per Seksi</span>
-            </button>
-            <button
+              <Printer className="w-4 h-4" />
+              <span>Cetak</span>
+            </Button>
+
+            <Button
               type="button"
-              role="tab"
-              aria-selected={viewMode === "flat"}
-              onClick={() => setViewMode("flat")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer min-h-[40px] ${
-                viewMode === "flat"
-                  ? "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
+              variant="outline"
+              onClick={handleExportExcel}
+              className="hidden sm:inline-flex items-center gap-2"
             >
-              <List className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Tabel Rata</span>
-            </button>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Excel</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleResetRab}
+              className="hidden sm:inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-800"
+              title="Reset data RAB di VPS/Database"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Data</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant="primary"
+              onClick={openAddWadah}
+              className="inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Buat Wadah Anggaran</span>
+            </Button>
           </div>
         </div>
 
-        {/* 3 Main Stat Cards (Consistent with Keuangan / Dashboard) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 mb-8">
-          {/* Card 1: Total Anggaran */}
+        {/* 4 Main Stat Cards (Budget vs Actual Monitoring) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
+          {/* Card 1: Total Rencana */}
           <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md transition">
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -300,99 +463,97 @@ export default function RabPage() {
               </div>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-1">
-              {formatRupiah(ringkasan.totalAnggaran)}
+              {formatRupiah(ringkasan.totalRencana)}
             </h2>
             <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Estimasi biaya seluruh kepanitiaan</span>
+              <span>Dari {ringkasan.totalWadah} pos wadah ({ringkasan.totalItems} item)</span>
             </div>
           </div>
 
-          {/* Card 2: Total Item Kebutuhan */}
+          {/* Card 2: Realisasi Kas Keluar */}
           <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md transition">
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Total Item Kebutuhan
+                Realisasi Kas Keluar
               </span>
               <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 shadow-2xs">
-                <List className="w-5 h-5" />
+                <CreditCard className="w-5 h-5" />
               </div>
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">
-              {ringkasan.totalItem} <span className="text-sm font-normal text-slate-500">item</span>
+              {formatRupiah(ringkasan.totalRealisasi)}
             </h2>
             <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-              Rincian barang, sewa, & konsumsi
+              Total kas keluar yang terhubung ke RAB
             </div>
           </div>
 
-          {/* Card 3: Seksi Beranggaran */}
+          {/* Card 3: Sisa Kuota Anggaran */}
           <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md transition">
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Seksi Beranggaran
+                Sisa Anggaran
               </span>
               <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 shadow-2xs">
                 <Layers className="w-5 h-5" />
               </div>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">
-              {ringkasan.seksiCount} <span className="text-sm font-normal text-slate-500">divisi</span>
+            <h2
+              className={`text-2xl sm:text-3xl font-bold mt-1 ${
+                ringkasan.sisaAnggaran < 0
+                  ? "text-rose-600 dark:text-rose-400"
+                  : "text-slate-900 dark:text-white"
+              }`}
+            >
+              {formatRupiah(ringkasan.sisaAnggaran)}
             </h2>
             <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-              Divisi dengan kebutuhan terdata
+              {ringkasan.sisaAnggaran < 0 ? "Melebihi estimasi rencana" : "Sisa pagu yang belum terpakai"}
+            </div>
+          </div>
+
+          {/* Card 4: Persentase Penyerapan */}
+          <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md transition">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Penyerapan Dana
+              </span>
+              <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-2xs">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">
+              {ringkasan.persentaseRealisasi}%
+            </h2>
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 ${
+                    ringkasan.persentaseRealisasi > 100
+                      ? "bg-rose-500"
+                      : ringkasan.persentaseRealisasi > 80
+                      ? "bg-amber-500"
+                      : "bg-emerald-500"
+                  }`}
+                  style={{ width: `${Math.min(ringkasan.persentaseRealisasi, 100)}%` }}
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Toolbar: Filter Seksi & Search */}
+        {/* Toolbar Pencarian */}
         <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs mb-6 w-full">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 items-center">
-            {/* Filter Seksi */}
-            <div className="flex flex-col gap-1">
-              <label htmlFor="filter-seksi" className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Filter Seksi:
-              </label>
-              <select
-                id="filter-seksi"
-                value={filterSeksi}
-                onChange={(e) => {
-                  setFilterSeksi(e.target.value);
-                  setCurrentPage(1);
-                }}
-                aria-label="Filter Berdasarkan Seksi"
-                className="w-full text-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 min-h-[44px] bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="all">Semua Seksi & Umum</option>
-                <option value="umum">Umum / Kepanitiaan</option>
-                {seksiList.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nama_seksi}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Search Input */}
-            <div className="flex flex-col gap-1 sm:col-span-2">
-              <label htmlFor="search-rab" className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Cari Kebutuhan / Uraian:
-              </label>
-              <div className="relative w-full">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  id="search-rab"
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  placeholder="Ketik nama kebutuhan atau catatan spesifikasi..."
-                  className="w-full text-xs border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 min-h-[44px] bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-            </div>
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari wadah anggaran atau rincian kebutuhan..."
+              className="w-full text-xs border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 min-h-[44px] bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
           </div>
         </div>
 
@@ -401,10 +562,9 @@ export default function RabPage() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden p-4">
             <table className="w-full">
               <tbody>
-                <SkeletonTableRow columns={6} />
-                <SkeletonTableRow columns={6} />
-                <SkeletonTableRow columns={6} />
-                <SkeletonTableRow columns={6} />
+                <SkeletonTableRow columns={5} />
+                <SkeletonTableRow columns={5} />
+                <SkeletonTableRow columns={5} />
               </tbody>
             </table>
           </div>
@@ -420,75 +580,153 @@ export default function RabPage() {
         )}
 
         {/* Empty State */}
-        {!loading && !error && items.length === 0 && (
+        {!loading && !error && wadahList.length === 0 && (
           <EmptyState
-            title="Belum Ada Kebutuhan Anggaran"
-            description="Mulai rancang estimasi biaya kepanitiaan dengan menambahkan item kebutuhan per seksi."
-            actionLabel="Tambah Kebutuhan Baru"
-            onAction={() => openAdd(filterSeksi !== "all" ? filterSeksi : "umum")}
+            title="Belum Ada Wadah Anggaran"
+            description="Mulai rancang RAB dengan membuat Judul Wadah Anggaran baru terlebih dahulu (misal: Anggaran Konsumsi, Anggaran Tenda & Panggung)."
+            actionLabel="Buat Wadah Anggaran Pertama"
+            onAction={openAddWadah}
           />
         )}
 
-        {/* VIEW MODE 1: GROUPED PER SEKSI */}
-        {!loading && !error && items.length > 0 && viewMode === "grouped" && (
+        {/* LIST OF WADAH CARDS (MASTER-DETAIL) */}
+        {!loading && !error && wadahList.length > 0 && (
           <div className="space-y-6">
-            {groups.map((group) => {
-              const groupKey = group.seksi_id || "umum";
-              const isCollapsed = !!collapsedGroups[groupKey];
+            {wadahList.map((w) => {
+              const isCollapsed = !!collapsedWadah[w.id];
+              const items = w.items || [];
+              const isOverBudget = w.sisa_anggaran < 0;
 
               return (
                 <div
-                  key={groupKey}
+                  key={w.id}
                   className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden transition"
                 >
-                  {/* Seksi Header with Subtotal & Add Button */}
+                  {/* Wadah Header */}
                   <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
-                    <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => toggleGroup(groupKey)}>
+                    <div
+                      className="flex items-center gap-3 cursor-pointer select-none"
+                      onClick={() => toggleWadah(w.id)}
+                    >
                       <button
                         type="button"
-                        aria-label={isCollapsed ? "Buka Seksi" : "Tutup Seksi"}
-                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition"
+                        aria-label={isCollapsed ? "Buka Wadah" : "Tutup Wadah"}
+                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition cursor-pointer"
                       >
                         {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                       </button>
                       <div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          {group.nama_seksi}
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                          {w.nama_anggaran}
                           <Badge variant="default" className="text-[10px] py-0 px-2">
-                            {group.items.length} item
+                            {w.items_count} item
                           </Badge>
+                          {isOverBudget && (
+                            <Badge variant="danger" className="text-[10px] py-0 px-2">
+                              Over Budget
+                            </Badge>
+                          )}
                         </h3>
+                        {w.catatan && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            {w.catatan}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 ml-auto">
+                    {/* Financial Summary per Wadah */}
+                    <div className="flex items-center gap-4 ml-auto flex-wrap">
                       <div className="text-right">
                         <span className="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block">
-                          Subtotal Seksi:
+                          Rencana Anggaran
                         </span>
-                        <span className="text-base font-extrabold text-emerald-700 dark:text-emerald-300">
-                          {formatRupiah(group.subtotal)}
+                        <span className="text-sm sm:text-base font-extrabold text-emerald-700 dark:text-emerald-300">
+                          {formatRupiah(w.total_rencana)}
                         </span>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openAdd(group.seksi_id || "umum")}
-                        className="h-8 px-2.5 text-xs inline-flex items-center gap-1"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Tambah</span>
-                      </Button>
+
+                      <div className="text-right border-l border-slate-200 dark:border-slate-700 pl-4">
+                        <span className="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block">
+                          Kas Terpakai
+                        </span>
+                        <span className="text-sm sm:text-base font-extrabold text-blue-600 dark:text-blue-400">
+                          {formatRupiah(w.total_realisasi)}
+                        </span>
+                      </div>
+
+                      <div className="text-right border-l border-slate-200 dark:border-slate-700 pl-4">
+                        <span className="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block">
+                          Sisa Saldo
+                        </span>
+                        <span
+                          className={`text-sm sm:text-base font-extrabold ${
+                            isOverBudget
+                              ? "text-rose-600 dark:text-rose-400"
+                              : "text-slate-800 dark:text-slate-200"
+                          }`}
+                        >
+                          {formatRupiah(w.sisa_anggaran)}
+                        </span>
+                      </div>
+
+                      {/* Wadah Action Buttons */}
+                      <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-3">
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          onClick={() => openAddItem(w)}
+                          className="h-8 px-2.5 text-xs inline-flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Tambah Item</span>
+                        </Button>
+                        <TableActionGroup
+                          onEdit={() => openEditWadah(w)}
+                          onDelete={() => handleDeleteWadah(w)}
+                          editTooltip="Edit Wadah Anggaran"
+                          deleteTooltip="Hapus Wadah Anggaran"
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  {/* Seksi Items Table */}
+                  {/* Progress Bar Penyerapan Dana per Wadah */}
+                  <div className="px-5 py-2 bg-slate-100/50 dark:bg-slate-800/20 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 gap-3">
+                    <span className="text-[11px] font-medium">
+                      Penyerapan: <span className="font-bold text-slate-700 dark:text-slate-300">{w.persentase_realisasi}%</span>
+                    </span>
+                    <div className="flex-1 max-w-md bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isOverBudget
+                            ? "bg-rose-500"
+                            : w.persentase_realisasi > 80
+                            ? "bg-amber-500"
+                            : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${Math.min(w.persentase_realisasi, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Items Table inside Wadah */}
                   {!isCollapsed && (
                     <div className="overflow-x-auto">
-                      {group.items.length === 0 ? (
-                        <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500 italic">
-                          Belum ada item anggaran pada seksi ini. Klik &quot;Tambah&quot; untuk menginput.
+                      {items.length === 0 ? (
+                        <div className="py-8 px-4 text-center text-xs text-slate-400 dark:text-slate-500 flex flex-col items-center gap-2">
+                          <p>Belum ada rincian kebutuhan di wadah ini.</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openAddItem(w)}
+                            className="text-xs"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" />
+                            Tambah Rincian Kebutuhan
+                          </Button>
                         </div>
                       ) : (
                         <table className="w-full text-left text-xs border-collapse">
@@ -504,7 +742,7 @@ export default function RabPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {group.items.map((item, idx) => (
+                            {items.map((item, idx) => (
                               <tr
                                 key={item.id}
                                 className="hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition-colors"
@@ -541,10 +779,10 @@ export default function RabPage() {
                                 </td>
                                 <td className="py-3.5 px-4 text-right">
                                   <TableActionGroup
-                                    onEdit={() => openEdit(item)}
-                                    onDelete={() => handleDelete(item)}
+                                    onEdit={() => openEditItem(w, item)}
+                                    onDelete={() => handleDeleteItem(item)}
                                     editTooltip="Edit Kebutuhan"
-                                    deleteTooltip="Hapus dari RAB"
+                                    deleteTooltip="Hapus dari Wadah"
                                   />
                                 </td>
                               </tr>
@@ -559,101 +797,10 @@ export default function RabPage() {
             })}
           </div>
         )}
-
-        {/* VIEW MODE 2: FLAT TABLE VIEW */}
-        {!loading && !error && items.length > 0 && viewMode === "flat" && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">
-                    <th className="py-3.5 px-4 w-12 text-center">No</th>
-                    <th className="py-3.5 px-4">Seksi</th>
-                    <th className="py-3.5 px-4">Nama Kebutuhan</th>
-                    <th className="py-3.5 px-4 text-center">Volume</th>
-                    <th className="py-3.5 px-4 text-right">Harga Satuan</th>
-                    <th className="py-3.5 px-4 text-right font-bold">Total Biaya</th>
-                    <th className="py-3.5 px-4 hidden md:table-cell">Catatan</th>
-                    <th className="py-3.5 px-4 text-right w-24">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {paginatedItems.map((item, idx) => (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition-colors"
-                    >
-                      <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
-                        {(currentPage - 1) * itemsPerPage + idx + 1}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <Badge variant="blue" className="text-[11px]">
-                          {item.nama_seksi || "Umum / Kepanitiaan"}
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="font-semibold text-slate-900 dark:text-white block">
-                          {item.nama_item}
-                        </span>
-                        {item.catatan && (
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block md:hidden mt-0.5">
-                            {item.catatan}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">
-                          {item.volume}
-                        </span>{" "}
-                        <span className="text-slate-500 dark:text-slate-400 text-[11px]">
-                          {item.satuan}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right text-slate-600 dark:text-slate-400 whitespace-nowrap font-mono">
-                        {formatRupiah(item.harga_satuan)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap font-mono">
-                        {formatRupiah(item.total_estimasi)}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 hidden md:table-cell text-[11px] max-w-xs truncate">
-                        {item.catatan || "-"}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <TableActionGroup
-                          onEdit={() => openEdit(item)}
-                          onDelete={() => handleDelete(item)}
-                          editTooltip="Edit Kebutuhan"
-                          deleteTooltip="Hapus dari RAB"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  totalItems={items.length}
-                  itemName="kebutuhan"
-                  onPageChange={setCurrentPage}
-                />
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Tampilan Khusus Cetak Dokumen Resmi (@media print) */}
-      <RabPrintView
-        groups={groups}
-        items={items}
-        totalAnggaran={ringkasan.totalAnggaran}
-      />
+      <RabPrintView wadah={wadahList} ringkasan={ringkasan} />
 
       {/* Floating Speed Dial Actions di Kanan Bawah untuk Akses Cepat Mobile */}
       <SpeedDialActions
@@ -672,24 +819,35 @@ export default function RabPage() {
             onClick: handleExportExcel,
           },
           {
-            label: "Tambah Kebutuhan",
+            label: "Buat Wadah Baru",
             icon: Plus,
             variant: "primary",
-            onClick: () => openAdd("umum"),
+            onClick: openAddWadah,
           },
         ]}
       />
 
-      {/* Subcomponent Modal Tambah / Edit */}
-      <RabModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSubmit={handleSave}
-        form={form}
-        setForm={setForm}
-        seksiList={seksiList}
-        isEditing={isEditing}
-        submitting={submitting}
+      {/* Modal 1: Buat / Edit Wadah Anggaran */}
+      <RabWadahModal
+        isOpen={wadahModalOpen}
+        onClose={() => setWadahModalOpen(false)}
+        onSubmit={handleSaveWadah}
+        form={wadahForm}
+        setForm={setWadahForm}
+        isEditing={isEditingWadah}
+        submitting={submittingWadah}
+      />
+
+      {/* Modal 2: Tambah / Edit Rincian Kebutuhan */}
+      <RabItemModal
+        isOpen={itemModalOpen}
+        onClose={() => setItemModalOpen(false)}
+        onSubmit={handleSaveItem}
+        wadahName={activeWadahName}
+        form={itemForm}
+        setForm={setItemForm}
+        isEditing={isEditingItem}
+        submitting={submittingItem}
       />
 
       {confirmDialog}

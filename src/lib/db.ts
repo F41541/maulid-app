@@ -210,20 +210,39 @@ export async function initSchema(customPool?: Pool): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
+  // Check if existing rab table has old schema (seksi_id) -> reset to new master-detail schema
+  try {
+    const [cols] = (await pool.query("SHOW COLUMNS FROM rab LIKE 'nama_anggaran'")) as any;
+    if (cols.length === 0) {
+      await pool.query("DROP TABLE IF EXISTS rab_items");
+      await pool.query("DROP TABLE IF EXISTS rab");
+    }
+  } catch {}
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS rab (
       id VARCHAR(36) PRIMARY KEY,
-      seksi_id VARCHAR(36) NULL,
+      nama_anggaran VARCHAR(255) NOT NULL,
+      catatan TEXT NULL,
+      created_by VARCHAR(36) NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rab_items (
+      id VARCHAR(36) PRIMARY KEY,
+      rab_id VARCHAR(36) NOT NULL,
       nama_item VARCHAR(255) NOT NULL,
       volume DECIMAL(10,2) NOT NULL DEFAULT 1.00,
       satuan VARCHAR(50) NOT NULL DEFAULT 'pcs',
       harga_satuan BIGINT NOT NULL DEFAULT 0,
       total_estimasi BIGINT NOT NULL DEFAULT 0,
       catatan TEXT NULL,
-      created_by VARCHAR(36) NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT fk_rab_seksi FOREIGN KEY (seksi_id) REFERENCES seksi(id) ON DELETE SET NULL
+      CONSTRAINT fk_rab_items_rab FOREIGN KEY (rab_id) REFERENCES rab(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
@@ -246,6 +265,7 @@ export async function initSchema(customPool?: Pool): Promise<void> {
   await addCol("keuangan", "void_at", "DATETIME NULL");
   await addCol("keuangan", "void_ref_id", "VARCHAR(36) NULL");
   await addCol("keuangan", "pair_id", "VARCHAR(36) NULL");
+  await addCol("keuangan", "rab_id", "VARCHAR(36) NULL");
 
   try {
     await pool.query("ALTER TABLE seksi MODIFY koordinator_id VARCHAR(36) NULL");

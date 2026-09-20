@@ -12,12 +12,14 @@ interface TransaksiModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
+  rabList?: Array<{ id: string; nama_anggaran: string }>;
   form: {
     tipe: "masuk" | "keluar";
     tanggal: string;
     keterangan: string;
     nominal: string;
     metode: "cash" | "transfer";
+    rab_id: string;
   };
   setForm: React.Dispatch<
     React.SetStateAction<{
@@ -26,6 +28,7 @@ interface TransaksiModalProps {
       keterangan: string;
       nominal: string;
       metode: "cash" | "transfer";
+      rab_id: string;
     }>
   >;
 }
@@ -34,6 +37,7 @@ export function TransaksiModal({
   isOpen,
   onClose,
   onSubmit,
+  rabList = [],
   form,
   setForm,
 }: TransaksiModalProps) {
@@ -72,6 +76,29 @@ export function TransaksiModal({
               />
             </FormField>
           </div>
+
+          {form.tipe === "keluar" && (
+            <div className="mt-3">
+              <FormField label="Wadah Anggaran (RAB)" required>
+                <Select
+                  value={form.rab_id || ""}
+                  onChange={(e) => setForm({ ...form, rab_id: e.target.value })}
+                >
+                  <option value="">-- Pilih Judul Anggaran (RAB) --</option>
+                  {rabList.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nama_anggaran}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              {rabList.length === 0 && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 italic">
+                  Belum ada Wadah RAB. Anda dapat membuat Judul Wadah terlebih dahulu di menu RAB.
+                </p>
+              )}
+            </div>
+          )}
         </ModalSection>
 
         {/* Section 2: Informasi Keuangan */}

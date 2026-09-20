@@ -97,12 +97,14 @@ CREATE TABLE IF NOT EXISTS `keuangan` (
   `void_at` DATETIME DEFAULT NULL,
   `void_ref_id` VARCHAR(36) DEFAULT NULL,
   `pair_id` VARCHAR(36) DEFAULT NULL,
+  `rab_id` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_keuangan_tipe_metode` (`tipe`, `metode`),
   KEY `idx_keuangan_tanggal` (`tanggal`),
   KEY `idx_keuangan_status` (`status`),
-  KEY `idx_keuangan_pair_id` (`pair_id`)
+  KEY `idx_keuangan_pair_id` (`pair_id`),
+  KEY `idx_keuangan_rab_id` (`rab_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 7. Tabel Tamu Undangan
@@ -120,20 +122,30 @@ CREATE TABLE IF NOT EXISTS `tamu` (
   KEY `idx_tamu_kehadiran` (`kehadiran`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 8. Tabel Rencana Anggaran Biaya (RAB)
+-- 8. Tabel Wadah / Judul RAB (Master)
 CREATE TABLE IF NOT EXISTS `rab` (
   `id` VARCHAR(36) NOT NULL,
-  `seksi_id` VARCHAR(36) DEFAULT NULL,
+  `nama_anggaran` VARCHAR(255) NOT NULL,
+  `catatan` TEXT DEFAULT NULL,
+  `created_by` VARCHAR(36) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 9. Tabel Rincian Item RAB (Detail)
+CREATE TABLE IF NOT EXISTS `rab_items` (
+  `id` VARCHAR(36) NOT NULL,
+  `rab_id` VARCHAR(36) NOT NULL,
   `nama_item` VARCHAR(255) NOT NULL,
   `volume` DECIMAL(10,2) NOT NULL DEFAULT 1.00,
   `satuan` VARCHAR(50) NOT NULL DEFAULT 'pcs',
   `harga_satuan` BIGINT NOT NULL DEFAULT 0,
   `total_estimasi` BIGINT NOT NULL DEFAULT 0,
   `catatan` TEXT DEFAULT NULL,
-  `created_by` VARCHAR(36) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_rab_seksi` (`seksi_id`),
-  CONSTRAINT `fk_rab_seksi` FOREIGN KEY (`seksi_id`) REFERENCES `seksi` (`id`) ON DELETE SET NULL
+  KEY `idx_rab_items_rab_id` (`rab_id`),
+  CONSTRAINT `fk_rab_items_rab` FOREIGN KEY (`rab_id`) REFERENCES `rab` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

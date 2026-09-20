@@ -2,105 +2,107 @@ import { NextRequest, NextResponse } from "next/server";
 import { query, execute } from "@/lib/db";
 import { requireAuth, ROLES } from "@/lib/auth";
 import { randomUUID } from "node:crypto";
-import { RabItem, RabSeksiGroup } from "@/types";
+import { RabWadah, RabItemDetail, RabRingkasanGlobal } from "@/types";
 
 export async function GET(req: NextRequest) {
   try {
     await requireAuth([ROLES.KETUA_PANITIA, ROLES.WAKIL_KETUA, ROLES.BENDAHARA]);
 
-    const seksiId = req.nextUrl.searchParams.get("seksi_id");
     const q = req.nextUrl.searchParams.get("q")?.trim();
 
-    let sql = `
-      SELECT r.id, r.seksi_id, r.nama_item, r.volume, r.satuan, r.harga_satuan, 
-             r.total_estimasi, r.catatan, r.created_by, r.created_at, r.updated_at,
-             s.nama_seksi
-      FROM rab r
-      LEFT JOIN seksi s ON r.seksi_id = s.id
-      WHERE 1=1
-    `;
-    const params: unknown[] = [];
-
-    if (seksiId === "umum") {
-      sql += " AND r.seksi_id IS NULL";
-    } else if (seksiId && seksiId !== "all") {
-      sql += " AND r.seksi_id = ?";
-      params.push(seksiId);
-    }
-
+    // 1. Fetch all Wadah RAB
+    let sqlWadah = "SELECT * FROM rab WHERE 1=1";
+    const paramsWadah: unknown[] = [];
     if (q) {
-      sql += " AND (r.nama_item LIKE ? OR r.catatan LIKE ?)";
-      params.push(`%${q}%`, `%${q}%`);
+      sqlWadah += " AND (nama_anggaran LIKE ? OR catatan LIKE ?)";
+      paramsWadah.push(`%${q}%`, `%${q}%`);
     }
+    sqlWadah += " ORDER BY created_at ASC";
+    const wadahRows = await query<{
+      id: string;
+      nama_anggaran: string;
+      catatan: string | null;
+      created_at: string;
+      updated_at: string;
+    }>(sqlWadah, paramsWadah);
 
-    sql += " ORDER BY COALESCE(s.nama_seksi, 'ZZZ') ASC, r.created_at ASC";
-
-    const rows = await query<RabItem>(sql, params);
-
-    // List all seksi for filter dropdown & form
-    const seksiList = await query<{ id: string; nama_seksi: string }>(
-      "SELECT id, nama_seksi FROM seksi ORDER BY nama_seksi ASC"
+    // 2. Fetch all Items under all Wadah
+    const itemRows = await query<RabItemDetail>(
+      "SELECT * FROM rab_items ORDER BY created_at ASC"
     );
 
-    // Calculate overall aggregates
-    const totalAnggaran = rows.reduce((sum, item) => sum + Number(item.total_estimasi || 0), 0);
-    const totalItem = rows.length;
+    // 3. Fetch Realization from Keuangan for each Wadah
+    const realisasiRows = await query<{ rab_id: string; total_realisasi: number }>(`
+      SELECT rab_id, COALESCE(SUM(nominal), 0) as total_realisasi
+      FROM keuangan
+      WHERE tipe = 'keluar' AND (status IS NULL OR status = 'aktif') AND rab_id IS NOT NULL
+      GROUP BY rab_id
+    `);
 
-    // Group items by seksi
-    const groupMap = new Map<string, RabSeksiGroup>();
+    const realisasiMap = new Map<string, number>();
+    for (const r of realisasiRows) {
+      realisasiMap.set(r.rab_id, Number(r.total_realisasi || 0));
+    }
 
-    // Initialize all existing seksi in groups if no specific filter is active
-    if (!seksiId || seksiId === "all") {
-      for (const s of seksiList) {
-        groupMap.set(s.id, {
-          seksi_id: s.id,
-          nama_seksi: s.nama_seksi,
-          items: [],
-          subtotal: 0,
-          total_items: 0,
-        });
+    // Group items by rab_id
+    const itemMap = new Map<string, RabItemDetail[]>();
+    for (const item of itemRows) {
+      if (!itemMap.has(item.rab_id)) {
+        itemMap.set(item.rab_id, []);
       }
+      itemMap.get(item.rab_id)!.push(item);
     }
 
-    // Populate items into their groups
-    for (const item of rows) {
-      const key = item.seksi_id || "umum";
-      const groupName = item.nama_seksi || "Umum / Kepanitiaan";
+    // 4. Assemble Wadah with Items and Calculations
+    let totalRencanaGlobal = 0;
+    let totalRealisasiGlobal = 0;
 
-      if (!groupMap.has(key)) {
-        groupMap.set(key, {
-          seksi_id: item.seksi_id,
-          nama_seksi: groupName,
-          items: [],
-          subtotal: 0,
-          total_items: 0,
-        });
-      }
+    const wadahList: RabWadah[] = wadahRows.map((w) => {
+      const items = itemMap.get(w.id) || [];
+      const total_rencana = items.reduce(
+        (sum, it) => sum + Number(it.total_estimasi || 0),
+        0
+      );
+      const total_realisasi = realisasiMap.get(w.id) || 0;
+      const sisa_anggaran = total_rencana - total_realisasi;
+      const persentase_realisasi =
+        total_rencana > 0
+          ? Math.round((total_realisasi / total_rencana) * 100)
+          : 0;
 
-      const grp = groupMap.get(key)!;
-      grp.items.push(item);
-      grp.subtotal += Number(item.total_estimasi || 0);
-      grp.total_items += 1;
-    }
+      totalRencanaGlobal += total_rencana;
+      totalRealisasiGlobal += total_realisasi;
 
-    // Convert map to array; filter out empty groups if search query is active
-    let groups = Array.from(groupMap.values());
-    if (q) {
-      groups = groups.filter((g) => g.items.length > 0);
-    }
+      return {
+        id: w.id,
+        nama_anggaran: w.nama_anggaran,
+        catatan: w.catatan,
+        total_rencana,
+        total_realisasi,
+        sisa_anggaran,
+        persentase_realisasi,
+        items_count: items.length,
+        items,
+        created_at: w.created_at,
+        updated_at: w.updated_at,
+      };
+    });
 
-    // Distinct count of seksi with at least one item
-    const seksiWithItems = new Set(rows.map((r) => r.seksi_id || "umum"));
+    const ringkasan: RabRingkasanGlobal = {
+      totalRencana: totalRencanaGlobal,
+      totalRealisasi: totalRealisasiGlobal,
+      sisaAnggaran: totalRencanaGlobal - totalRealisasiGlobal,
+      persentaseRealisasi:
+        totalRencanaGlobal > 0
+          ? Math.round((totalRealisasiGlobal / totalRencanaGlobal) * 100)
+          : 0,
+      totalWadah: wadahList.length,
+      totalItems: itemRows.length,
+    };
 
     return NextResponse.json({
-      items: rows,
-      groups,
-      ringkasan: {
-        totalAnggaran,
-        totalItem,
-        seksiCount: seksiWithItems.size,
-      },
-      seksiList,
+      wadah: wadahList,
+      ringkasan,
     });
   } catch (err: unknown) {
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
@@ -113,88 +115,202 @@ export async function GET(req: NextRequest) {
       );
     }
     console.error("[RAB API] GET Error:", err);
-    return NextResponse.json({ error: "Terjadi kesalahan server saat memuat data RAB" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Terjadi kesalahan server saat memuat data RAB" },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireAuth([ROLES.KETUA_PANITIA, ROLES.WAKIL_KETUA, ROLES.BENDAHARA]);
+    const user = await requireAuth([
+      ROLES.KETUA_PANITIA,
+      ROLES.WAKIL_KETUA,
+      ROLES.BENDAHARA,
+    ]);
     const body = await req.json();
     const { action } = body;
 
-    if (action === "create") {
-      const { seksi_id, nama_item, volume, satuan, harga_satuan, catatan } = body;
-
-      if (!nama_item || !nama_item.trim()) {
-        return NextResponse.json({ error: "Nama kebutuhan / uraian wajib diisi" }, { status: 400 });
+    // 1. Create Wadah Anggaran
+    if (action === "create_wadah") {
+      const { nama_anggaran, catatan } = body;
+      if (!nama_anggaran || !nama_anggaran.trim()) {
+        return NextResponse.json(
+          { error: "Judul wadah anggaran wajib diisi" },
+          { status: 400 }
+        );
       }
 
-      const parsedVolume = Math.round(parseFloat(volume) * 100) / 100;
+      const id = randomUUID();
+      await execute(
+        `INSERT INTO rab (id, nama_anggaran, catatan, created_by) VALUES (?, ?, ?, ?)`,
+        [id, nama_anggaran.trim(), catatan ? catatan.trim() : null, user.id]
+      );
+
+      return NextResponse.json({ success: true, id });
+    }
+
+    // 2. Update Wadah Anggaran
+    if (action === "update_wadah") {
+      const { id, nama_anggaran, catatan } = body;
+      if (!id || !nama_anggaran || !nama_anggaran.trim()) {
+        return NextResponse.json(
+          { error: "ID dan judul wadah anggaran wajib diisi" },
+          { status: 400 }
+        );
+      }
+
+      const res = await execute(
+        `UPDATE rab SET nama_anggaran = ?, catatan = ? WHERE id = ?`,
+        [nama_anggaran.trim(), catatan ? catatan.trim() : null, id]
+      );
+
+      if (res.affectedRows === 0) {
+        return NextResponse.json(
+          { error: "Wadah anggaran tidak ditemukan" },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    // 3. Delete Wadah Anggaran with Protection
+    if (action === "delete_wadah") {
+      const { id } = body;
+      if (!id) {
+        return NextResponse.json(
+          { error: "ID wadah anggaran wajib disertakan" },
+          { status: 400 }
+        );
+      }
+
+      // Check if any active/recorded cash transaction uses this wadah
+      const linked = await query<{ count: number }>(
+        "SELECT COUNT(*) as count FROM keuangan WHERE rab_id = ?",
+        [id]
+      );
+      const count = Number(linked[0]?.count || 0);
+
+      if (count > 0) {
+        return NextResponse.json(
+          {
+            error: `Wadah anggaran tidak dapat dihapus karena sudah memiliki ${count} catatan transaksi pengeluaran kas. Ubah atau batalkan transaksi kas tersebut terlebih dahulu.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      const res = await execute("DELETE FROM rab WHERE id = ?", [id]);
+      if (res.affectedRows === 0) {
+        return NextResponse.json(
+          { error: "Wadah anggaran tidak ditemukan" },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    // 4. Create Detail Item under a Wadah
+    if (action === "create_item") {
+      const { rab_id, nama_item, volume, satuan, harga_satuan, catatan } = body;
+
+      if (!rab_id) {
+        return NextResponse.json(
+          { error: "Wadah anggaran (rab_id) wajib ditentukan" },
+          { status: 400 }
+        );
+      }
+
+      if (!nama_item || !nama_item.trim()) {
+        return NextResponse.json(
+          { error: "Nama kebutuhan / uraian wajib diisi" },
+          { status: 400 }
+        );
+      }
+
+      const parsedVolume = parseFloat(volume);
       if (isNaN(parsedVolume) || parsedVolume <= 0) {
-        return NextResponse.json({ error: "Volume kuantitas harus angka valid lebih dari 0" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Volume kuantitas harus angka valid lebih dari 0" },
+          { status: 400 }
+        );
       }
 
       const parsedHarga = parseInt(harga_satuan, 10);
       if (isNaN(parsedHarga) || parsedHarga < 0) {
-        return NextResponse.json({ error: "Harga satuan harus angka valid tidak boleh negatif" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Harga satuan harus angka valid tidak boleh negatif" },
+          { status: 400 }
+        );
       }
 
       const cleanSatuan = (satuan || "pcs").trim();
       const totalEstimasi = Math.round(parsedVolume * parsedHarga);
       const id = randomUUID();
-      const targetSeksiId = seksi_id && seksi_id !== "umum" ? seksi_id : null;
 
       await execute(
-        `INSERT INTO rab (id, seksi_id, nama_item, volume, satuan, harga_satuan, total_estimasi, catatan, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO rab_items (id, rab_id, nama_item, volume, satuan, harga_satuan, total_estimasi, catatan)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
-          targetSeksiId,
+          rab_id,
           nama_item.trim(),
           parsedVolume,
           cleanSatuan,
           parsedHarga,
           totalEstimasi,
           catatan ? catatan.trim() : null,
-          user.id,
         ]
       );
 
       return NextResponse.json({ success: true, id });
     }
 
-    if (action === "update") {
-      const { id, seksi_id, nama_item, volume, satuan, harga_satuan, catatan } = body;
+    // 5. Update Detail Item
+    if (action === "update_item") {
+      const { id, nama_item, volume, satuan, harga_satuan, catatan } = body;
 
       if (!id) {
-        return NextResponse.json({ error: "ID RAB wajib disertakan" }, { status: 400 });
+        return NextResponse.json(
+          { error: "ID rincian kebutuhan wajib disertakan" },
+          { status: 400 }
+        );
       }
 
       if (!nama_item || !nama_item.trim()) {
-        return NextResponse.json({ error: "Nama kebutuhan / uraian wajib diisi" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Nama kebutuhan / uraian wajib diisi" },
+          { status: 400 }
+        );
       }
 
-      const parsedVolume = Math.round(parseFloat(volume) * 100) / 100;
+      const parsedVolume = parseFloat(volume);
       if (isNaN(parsedVolume) || parsedVolume <= 0) {
-        return NextResponse.json({ error: "Volume kuantitas harus angka valid lebih dari 0" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Volume kuantitas harus angka valid lebih dari 0" },
+          { status: 400 }
+        );
       }
 
       const parsedHarga = parseInt(harga_satuan, 10);
       if (isNaN(parsedHarga) || parsedHarga < 0) {
-        return NextResponse.json({ error: "Harga satuan harus angka valid tidak boleh negatif" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Harga satuan harus angka valid tidak boleh negatif" },
+          { status: 400 }
+        );
       }
 
       const cleanSatuan = (satuan || "pcs").trim();
       const totalEstimasi = Math.round(parsedVolume * parsedHarga);
-      const targetSeksiId = seksi_id && seksi_id !== "umum" ? seksi_id : null;
 
-      const result = await execute(
-        `UPDATE rab 
-         SET seksi_id = ?, nama_item = ?, volume = ?, satuan = ?, harga_satuan = ?, total_estimasi = ?, catatan = ?
+      const res = await execute(
+        `UPDATE rab_items 
+         SET nama_item = ?, volume = ?, satuan = ?, harga_satuan = ?, total_estimasi = ?, catatan = ?
          WHERE id = ?`,
         [
-          targetSeksiId,
           nama_item.trim(),
           parsedVolume,
           cleanSatuan,
@@ -205,27 +321,43 @@ export async function POST(req: NextRequest) {
         ]
       );
 
-      if (result.affectedRows === 0) {
-        return NextResponse.json({ error: "Item RAB tidak ditemukan" }, { status: 404 });
+      if (res.affectedRows === 0) {
+        return NextResponse.json(
+          { error: "Rincian kebutuhan tidak ditemukan" },
+          { status: 404 }
+        );
       }
 
       return NextResponse.json({ success: true });
     }
 
-    if (action === "delete") {
+    // 6. Delete Detail Item
+    if (action === "delete_item") {
       const { id } = body;
-
       if (!id) {
-        return NextResponse.json({ error: "ID RAB wajib disertakan" }, { status: 400 });
+        return NextResponse.json(
+          { error: "ID rincian kebutuhan wajib disertakan" },
+          { status: 400 }
+        );
       }
 
-      const result = await execute("DELETE FROM rab WHERE id = ?", [id]);
-
-      if (result.affectedRows === 0) {
-        return NextResponse.json({ error: "Item RAB tidak ditemukan" }, { status: 404 });
+      const res = await execute("DELETE FROM rab_items WHERE id = ?", [id]);
+      if (res.affectedRows === 0) {
+        return NextResponse.json(
+          { error: "Rincian kebutuhan tidak ditemukan" },
+          { status: 404 }
+        );
       }
 
       return NextResponse.json({ success: true });
+    }
+
+    // 7. Reset RAB Data (Sesuai Permintaan User untuk reset bersih)
+    if (action === "reset_rab") {
+      await execute("UPDATE keuangan SET rab_id = NULL WHERE rab_id IS NOT NULL");
+      await execute("DELETE FROM rab_items");
+      await execute("DELETE FROM rab");
+      return NextResponse.json({ success: true, message: "Data RAB berhasil direset" });
     }
 
     return NextResponse.json({ error: "Aksi tidak dikenali" }, { status: 400 });
@@ -240,6 +372,9 @@ export async function POST(req: NextRequest) {
       );
     }
     console.error("[RAB API] POST Error:", err);
-    return NextResponse.json({ error: "Terjadi kesalahan server saat menyimpan data RAB" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Terjadi kesalahan server saat memproses data RAB" },
+      { status: 500 }
+    );
   }
 }

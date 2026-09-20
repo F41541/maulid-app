@@ -4,14 +4,100 @@ import React, { useMemo } from "react";
 import { Modal, ModalFooter, ModalSection } from "@/components/ui/Modal";
 import { FormField } from "@/components/ui/FormField";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { formatRupiah } from "@/lib/format";
 
-export interface RabFormData {
+// -------------------------------------------------------------
+// 1. Modal Wadah Anggaran (Master)
+// -------------------------------------------------------------
+export interface RabWadahFormData {
   id?: string;
-  seksi_id: string;
+  nama_anggaran: string;
+  catatan: string;
+}
+
+interface RabWadahModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (e: React.FormEvent) => void;
+  form: RabWadahFormData;
+  setForm: React.Dispatch<React.SetStateAction<RabWadahFormData>>;
+  isEditing: boolean;
+  submitting: boolean;
+}
+
+export function RabWadahModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  form,
+  setForm,
+  isEditing,
+  submitting,
+}: RabWadahModalProps) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEditing ? "Edit Wadah Anggaran" : "Buat Wadah Anggaran Baru"}
+      description="Wadah anggaran berfungsi sebagai pos/judul utama untuk mengelompokkan rincian kebutuhan biaya acara."
+      maxWidth="md"
+    >
+      <form onSubmit={onSubmit} className="space-y-4">
+        <ModalSection title="Informasi Wadah Anggaran" bordered={false}>
+          <div className="space-y-3">
+            <FormField label="Judul / Nama Wadah Anggaran" required>
+              <Input
+                type="text"
+                required
+                value={form.nama_anggaran}
+                onChange={(e) =>
+                  setForm({ ...form, nama_anggaran: e.target.value })
+                }
+                placeholder="Contoh: Anggaran Konsumsi Jamaah / Anggaran Tenda & Panggung"
+              />
+            </FormField>
+
+            <FormField label="Keterangan / Ruang Lingkup (Opsional)">
+              <Textarea
+                rows={2}
+                value={form.catatan}
+                onChange={(e) => setForm({ ...form, catatan: e.target.value })}
+                placeholder="Deskripsi singkat mengenai peruntukan pos anggaran ini..."
+              />
+            </FormField>
+          </div>
+        </ModalSection>
+
+        <ModalFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Batal
+          </Button>
+          <Button type="submit" variant="primary" disabled={submitting}>
+            {submitting
+              ? "Menyimpan..."
+              : isEditing
+              ? "Simpan Perubahan"
+              : "Buat Wadah"}
+          </Button>
+        </ModalFooter>
+      </form>
+    </Modal>
+  );
+}
+
+// -------------------------------------------------------------
+// 2. Modal Detail Item Kebutuhan (Detail)
+// -------------------------------------------------------------
+export interface RabItemFormData {
+  id?: string;
+  rab_id: string;
   nama_item: string;
   volume: string;
   satuan: string;
@@ -19,31 +105,41 @@ export interface RabFormData {
   catatan: string;
 }
 
-interface RabModalProps {
+interface RabItemModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
-  form: RabFormData;
-  setForm: React.Dispatch<React.SetStateAction<RabFormData>>;
-  seksiList: Array<{ id: string; nama_seksi: string }>;
+  wadahName: string;
+  form: RabItemFormData;
+  setForm: React.Dispatch<React.SetStateAction<RabItemFormData>>;
   isEditing: boolean;
   submitting: boolean;
 }
 
-const COMMON_UNITS = ["porsi", "kotak", "set", "unit", "paket", "orang", "hari", "rim", "pcs"];
+const COMMON_UNITS = [
+  "porsi",
+  "kotak",
+  "set",
+  "unit",
+  "paket",
+  "orang",
+  "hari",
+  "rim",
+  "pcs",
+];
 
-export function RabModal({
+export function RabItemModal({
   isOpen,
   onClose,
   onSubmit,
+  wadahName,
   form,
   setForm,
-  seksiList,
   isEditing,
   submitting,
-}: RabModalProps) {
+}: RabItemModalProps) {
   const calculatedTotal = useMemo(() => {
-    const vol = Math.round(parseFloat(form.volume) * 100) / 100;
+    const vol = parseFloat(form.volume);
     const harga = parseInt(form.harga_satuan, 10);
     if (isNaN(vol) || isNaN(harga) || vol <= 0 || harga <= 0) return 0;
     return Math.round(vol * harga);
@@ -53,38 +149,26 @@ export function RabModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditing ? "Edit Rencana Anggaran (RAB)" : "Tambah Kebutuhan Anggaran (RAB)"}
-      description="Rincikan kebutuhan biaya per seksi secara transparan untuk kelancaran acara."
+      title={
+        isEditing
+          ? "Edit Rincian Kebutuhan"
+          : "Tambah Kebutuhan ke Wadah"
+      }
+      description={`Pos Anggaran: "${wadahName}". Lengkapi rincian kuantitas dan harga satuan.`}
       maxWidth="lg"
     >
       <form onSubmit={onSubmit} className="space-y-4">
-        {/* Seksi & Nama Kebutuhan */}
-        <ModalSection title="Kategori & Uraian Kebutuhan" bordered={false}>
-          <div className="space-y-3">
-            <FormField label="Seksi Kepanitiaan" required>
-              <Select
-                value={form.seksi_id}
-                onChange={(e) => setForm({ ...form, seksi_id: e.target.value })}
-              >
-                <option value="umum">Umum / Kepanitiaan</option>
-                {seksiList.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nama_seksi}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-
-            <FormField label="Nama Kebutuhan / Uraian Belanja" required>
-              <Input
-                type="text"
-                required
-                value={form.nama_item}
-                onChange={(e) => setForm({ ...form, nama_item: e.target.value })}
-                placeholder="Contoh: Sewa Tenda & Panggung 8x12m / Konsumsi Snack Jamaah"
-              />
-            </FormField>
-          </div>
+        {/* Nama Kebutuhan */}
+        <ModalSection title="Uraian Kebutuhan" bordered={false}>
+          <FormField label="Nama Kebutuhan / Belanja" required>
+            <Input
+              type="text"
+              required
+              value={form.nama_item}
+              onChange={(e) => setForm({ ...form, nama_item: e.target.value })}
+              placeholder="Contoh: Sewa Tenda 8x12m / Konsumsi Snack Kotak Jamaah"
+            />
+          </FormField>
         </ModalSection>
 
         {/* Volume, Satuan & Harga */}
@@ -140,7 +224,9 @@ export function RabModal({
                   min="0"
                   required
                   value={form.harga_satuan}
-                  onChange={(e) => setForm({ ...form, harga_satuan: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, harga_satuan: e.target.value })
+                  }
                   placeholder="Contoh: 25000"
                 />
               </FormField>
@@ -161,7 +247,8 @@ export function RabModal({
                   Total Estimasi Biaya:
                 </span>
                 <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
-                  {form.volume || 0} {form.satuan || "item"} × {formatRupiah(form.harga_satuan || 0)}
+                  {form.volume || 0} {form.satuan || "item"} ×{" "}
+                  {formatRupiah(form.harga_satuan || 0)}
                 </span>
               </div>
               <span className="text-lg font-extrabold text-emerald-700 dark:text-emerald-300">
@@ -185,11 +272,20 @@ export function RabModal({
 
         {/* Footer */}
         <ModalFooter>
-          <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={submitting}
+          >
             Batal
           </Button>
           <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting ? "Menyimpan..." : isEditing ? "Simpan Perubahan" : "Tambah ke RAB"}
+            {submitting
+              ? "Menyimpan..."
+              : isEditing
+              ? "Simpan Perubahan"
+              : "Tambah Kebutuhan"}
           </Button>
         </ModalFooter>
       </form>

@@ -12,6 +12,8 @@ export interface Transaksi {
   void_at?: string | null;
   void_ref_id?: string | null;
   pair_id?: string | null;
+  rab_id?: string | null;
+  nama_anggaran?: string | null;
   created_at?: string;
 }
 
@@ -93,31 +95,38 @@ export interface UserItem {
   panitia_jabatan?: string | null;
 }
 
-export interface RabItem {
+export interface RabWadah {
   id: string;
-  seksi_id: string | null;
-  nama_seksi?: string | null;
+  nama_anggaran: string;
+  catatan?: string | null;
+  total_rencana: number;
+  total_realisasi: number;
+  sisa_anggaran: number;
+  persentase_realisasi: number;
+  items_count: number;
+  items?: RabItemDetail[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface RabItemDetail {
+  id: string;
+  rab_id: string;
   nama_item: string;
   volume: number;
   satuan: string;
   harga_satuan: number;
   total_estimasi: number;
   catatan?: string | null;
-  created_by?: string | null;
   created_at?: string;
   updated_at?: string;
 }
 
-export interface RabSeksiGroup {
-  seksi_id: string | null;
-  nama_seksi: string;
-  items: RabItem[];
-  subtotal: number;
-  total_items: number;
-}
-
-export interface RabRingkasan {
-  totalAnggaran: number;
-  totalItem: number;
-  seksiCount: number;
+export interface RabRingkasanGlobal {
+  totalRencana: number;
+  totalRealisasi: number;
+  sisaAnggaran: number;
+  persentaseRealisasi: number;
+  totalWadah: number;
+  totalItems: number;
 }

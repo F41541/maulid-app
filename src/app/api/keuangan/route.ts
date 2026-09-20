@@ -14,36 +14,41 @@ export async function GET(req: NextRequest) {
     const startDate = req.nextUrl.searchParams.get("startDate"); // YYYY-MM-DD
     const endDate = req.nextUrl.searchParams.get("endDate"); // YYYY-MM-DD
 
-    let sql = "SELECT * FROM keuangan WHERE 1=1";
+    let sql = `
+      SELECT k.*, r.nama_anggaran
+      FROM keuangan k
+      LEFT JOIN rab r ON k.rab_id = r.id
+      WHERE 1=1
+    `;
     const params: unknown[] = [];
 
     if (tipe && tipe !== "all") {
-      sql += " AND tipe = ?";
+      sql += " AND k.tipe = ?";
       params.push(tipe);
     }
 
     if (metode && metode !== "all") {
-      sql += " AND metode = ?";
+      sql += " AND k.metode = ?";
       params.push(metode);
     }
 
     if (status === "aktif") {
-      sql += " AND (status IS NULL OR status = 'aktif')";
+      sql += " AND (k.status IS NULL OR k.status = 'aktif')";
     } else if (status === "void") {
-      sql += " AND (status = 'void' OR status = 'reversal')";
+      sql += " AND (k.status = 'void' OR k.status = 'reversal')";
     }
 
     if (startDate) {
-      sql += " AND tanggal >= ?";
+      sql += " AND k.tanggal >= ?";
       params.push(startDate);
     }
 
     if (endDate) {
-      sql += " AND tanggal <= ?";
+      sql += " AND k.tanggal <= ?";
       params.push(endDate);
     }
 
-    sql += " ORDER BY tanggal DESC, created_at DESC";
+    sql += " ORDER BY k.tanggal DESC, k.created_at DESC";
 
     const transaksi = await query(sql, params);
 
@@ -112,7 +117,7 @@ export async function POST(req: NextRequest) {
     const { action } = body;
 
     if (action === "create") {
-      const { tipe, tanggal, keterangan, nominal, metode } = body;
+      const { tipe, tanggal, keterangan, nominal, metode, rab_id } = body;
       if (!tipe || !tanggal || !keterangan || nominal === undefined || nominal === null) {
         return NextResponse.json({ error: "Lengkapi semua isian keuangan" }, { status: 400 });
       }
@@ -127,6 +132,7 @@ export async function POST(req: NextRequest) {
       }
 
       const selectedMetode = metode === "transfer" ? "transfer" : "cash";
+      const selectedRabId = tipe === "keluar" && rab_id ? rab_id : null;
       const id = randomUUID();
 
       if (tipe === "keluar") {
@@ -148,8 +154,8 @@ export async function POST(req: NextRequest) {
             throw new Error("INSUFFICIENT_BALANCE");
           }
           await conn.execute(
-            "INSERT INTO keuangan (id, tipe, tanggal, keterangan, nominal, metode, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [id, tipe, tanggal, keterangan, parsedNominal, selectedMetode, "aktif"]
+            "INSERT INTO keuangan (id, tipe, tanggal, keterangan, nominal, metode, status, rab_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [id, tipe, tanggal, keterangan, parsedNominal, selectedMetode, "aktif", selectedRabId]
           );
         }).catch((err) => {
           if (err.message !== "INSUFFICIENT_BALANCE") throw err;
@@ -159,8 +165,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, id });
       } else {
         await execute(
-          "INSERT INTO keuangan (id, tipe, tanggal, keterangan, nominal, metode, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [id, tipe, tanggal, keterangan, parsedNominal, selectedMetode, "aktif"]
+          "INSERT INTO keuangan (id, tipe, tanggal, keterangan, nominal, metode, status, rab_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [id, tipe, tanggal, keterangan, parsedNominal, selectedMetode, "aktif", null]
         );
         return NextResponse.json({ success: true, id });
       }
