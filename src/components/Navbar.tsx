@@ -16,6 +16,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  User,
 } from "lucide-react";
 import {
   isSidebarRole,
@@ -90,8 +91,7 @@ export default function Navbar({
     return memoryUser;
   });
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [profileSheetOpen, setProfileSheetOpen] = useState(false);
 
   useEffect(() => {
     isHydrated = true;
@@ -137,24 +137,15 @@ export default function Navbar({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mobileOpen]);
 
-  // Close user menu on outside click or Escape
+  // Close profile sheet on Escape key press
   useEffect(() => {
-    if (!userMenuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    };
+    if (!profileSheetOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setUserMenuOpen(false);
+      if (e.key === "Escape") setProfileSheetOpen(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
     window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [userMenuOpen]);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [profileSheetOpen]);
 
   const handleLogout = async () => {
     memoryUser = null;
@@ -465,67 +456,10 @@ export default function Navbar({
       {/* Top Header untuk Pengguna Selain Admin / Ketua */}
       <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 no-print transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          {/* Ganti link brand menjadi nama pengguna dengan dropdown logout */}
-          <div className="relative" ref={userMenuRef}>
-            <button
-              type="button"
-              onClick={() => setUserMenuOpen((prev) => !prev)}
-              className="flex items-center gap-2.5 sm:gap-3 p-1.5 -ml-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
-              aria-expanded={userMenuOpen}
-              aria-haspopup="true"
-              aria-label="Menu profil pengguna"
-            >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm sm:text-base shadow-sm shrink-0">
-                {effectiveName ? effectiveName.charAt(0).toUpperCase() : "U"}
-              </div>
-              <div className="text-left">
-                <span className="font-bold text-slate-800 dark:text-white text-sm sm:text-base leading-tight block truncate max-w-[180px] sm:max-w-xs">
-                  {effectiveName}
-                </span>
-                <span className="text-[11px] sm:text-xs text-emerald-700 dark:text-emerald-400 font-medium leading-none block mt-0.5">
-                  {renderedRoleLabel}
-                </span>
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform duration-200 ${
-                  userMenuOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            {/* Dropdown Menu Logout */}
-            {userMenuOpen && (
-              <div className="absolute left-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500">Masuk sebagai</p>
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
-                    {effectiveName}
-                  </p>
-                  <span className="inline-block px-2 py-0.5 mt-1 rounded-md text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                    {renderedRoleLabel}
-                  </span>
-                </div>
-                <div className="p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      handleLogout();
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl transition cursor-pointer"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Keluar (Logout)</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Center: Current Page Title */}
-          <div className="font-bold text-slate-800 dark:text-white text-sm sm:text-base tracking-tight">
+          {/* Left: Current Page Title (Rata Kiri Minimalis) */}
+          <h1 className="font-bold text-slate-900 dark:text-white text-base sm:text-lg tracking-tight">
             {currentPageTitle}
-          </div>
+          </h1>
 
           {/* Right: Theme Toggle */}
           <div className="flex items-center gap-2">
@@ -574,8 +508,102 @@ export default function Navbar({
               </Link>
             );
           })}
+
+          {/* Tab Akun di Paling Kanan */}
+          <button
+            type="button"
+            onClick={() => setProfileSheetOpen(true)}
+            aria-expanded={profileSheetOpen}
+            aria-haspopup="dialog"
+            aria-label="Profil Akun"
+            className={`min-w-[56px] min-h-[48px] py-1 px-2.5 rounded-xl transition-all duration-150 ease-out active:scale-95 flex flex-col items-center justify-center focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer ${
+              profileSheetOpen
+                ? "text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50/80 dark:bg-emerald-950/60 shadow-2xs"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800 font-medium"
+            }`}
+          >
+            <User
+              className={`w-5 h-5 mb-0.5 ${
+                profileSheetOpen
+                  ? "text-emerald-700 dark:text-emerald-300"
+                  : "text-slate-400 dark:text-slate-500"
+              }`}
+            />
+            <span className="text-[11px] leading-tight truncate">Akun</span>
+          </button>
         </div>
       </nav>
+
+      {/* Bottom Sheet Profil Akun */}
+      {profileSheetOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs transition-opacity animate-kinetic-backdrop no-print"
+          onClick={() => setProfileSheetOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Profil Pengguna"
+        className={`fixed inset-x-0 bottom-0 z-50 max-w-lg mx-auto bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl border-t border-slate-200 dark:border-slate-800 transition-transform duration-250 ease-[var(--spring-natural)] no-print ${
+          profileSheetOpen ? "translate-y-0" : "translate-y-full pointer-events-none"
+        }`}
+      >
+        {/* Drag handle pill */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
+        </div>
+
+        {/* Content */}
+        <div className="p-5 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">Profil Pengguna</h2>
+            <button
+              type="button"
+              onClick={() => setProfileSheetOpen(false)}
+              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              aria-label="Tutup"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
+              {effectiveName ? effectiveName.charAt(0).toUpperCase() : "U"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-slate-900 dark:text-white truncate">
+                {effectiveName}
+              </span>
+              {currentUser?.username && (
+                <span className="text-xs text-slate-500 dark:text-slate-400 block truncate mt-0.5">
+                  @{currentUser.username}
+                </span>
+              )}
+              <span className="inline-block px-2 py-0.5 mt-1.5 rounded-md text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                {renderedRoleLabel}
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setProfileSheetOpen(false);
+                handleLogout();
+              }}
+              className="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200/80 dark:border-rose-900/50 transition active:scale-[0.98] cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Keluar dari Akun</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
