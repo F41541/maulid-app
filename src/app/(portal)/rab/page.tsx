@@ -14,9 +14,11 @@ import {
   Layers,
   TrendingUp,
   AlertCircle,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 import { SpeedDialActions } from "@/components/shared/SpeedDialActions";
-import { TableActionGroup } from "@/components/shared/TableActionGroup";
+import { ActionMenu } from "@/components/shared/ActionMenu";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { SkeletonTableRow } from "@/components/ui/Skeleton";
@@ -551,23 +553,28 @@ export default function RabPage() {
                         </div>
                       </div>
 
-                      {/* Wadah Action Buttons (Tambah Item, Edit, Hapus) */}
-                      <div className="flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
-                        <Button
-                          type="button"
-                          variant="primary"
-                          size="sm"
-                          onClick={() => openAddItem(w)}
-                          className="h-8 px-2.5 sm:px-3 text-xs inline-flex items-center gap-1.5 shadow-2xs"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Tambah Item</span>
-                        </Button>
-                        <TableActionGroup
-                          onEdit={() => openEditWadah(w)}
-                          onDelete={() => handleDeleteWadah(w)}
-                          editTooltip="Edit Anggaran"
-                          deleteTooltip="Hapus Anggaran"
+                      {/* Wadah Action Menu (Titik 3: Tambah Item, Edit, Hapus) */}
+                      <div className="shrink-0 ml-auto sm:ml-0">
+                        <ActionMenu
+                          ariaLabel={`Aksi wadah ${w.nama_anggaran}`}
+                          items={[
+                            {
+                              label: "Tambah Item",
+                              icon: Plus,
+                              onClick: () => openAddItem(w),
+                            },
+                            {
+                              label: "Edit Anggaran",
+                              icon: Edit2,
+                              onClick: () => openEditWadah(w),
+                            },
+                            {
+                              label: "Hapus Anggaran",
+                              icon: Trash2,
+                              variant: "danger",
+                              onClick: () => handleDeleteWadah(w),
+                            },
+                          ]}
                         />
                       </div>
                     </div>
@@ -695,11 +702,21 @@ export default function RabPage() {
                                   {item.catatan || "-"}
                                 </td>
                                 <td className="py-3.5 px-4 text-right">
-                                  <TableActionGroup
-                                    onEdit={() => openEditItem(w, item)}
-                                    onDelete={() => handleDeleteItem(item)}
-                                    editTooltip="Edit Kebutuhan"
-                                    deleteTooltip="Hapus dari Wadah"
+                                  <ActionMenu
+                                    ariaLabel={`Aksi kebutuhan ${item.nama_item}`}
+                                    items={[
+                                      {
+                                        label: "Edit Kebutuhan",
+                                        icon: Edit2,
+                                        onClick: () => openEditItem(w, item),
+                                      },
+                                      {
+                                        label: "Hapus Kebutuhan",
+                                        icon: Trash2,
+                                        variant: "danger",
+                                        onClick: () => handleDeleteItem(item),
+                                      },
+                                    ]}
                                   />
                                 </td>
                               </tr>
