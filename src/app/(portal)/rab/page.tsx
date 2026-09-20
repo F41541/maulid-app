@@ -517,84 +517,51 @@ export default function RabPage() {
                   className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden transition"
                 >
                   {/* Wadah Header */}
-                  <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
-                    <div
-                      className="flex items-center gap-3 cursor-pointer select-none"
-                      onClick={() => toggleWadah(w.id)}
-                    >
-                      <button
-                        type="button"
-                        aria-label={isCollapsed ? "Buka Wadah" : "Tutup Wadah"}
-                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition cursor-pointer"
+                  <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+                    {/* Baris 1: Judul Wadah & Tombol Aksi */}
+                    <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                      <div
+                        className="flex items-start gap-2.5 cursor-pointer select-none min-w-0 flex-1"
+                        onClick={() => toggleWadah(w.id)}
                       >
-                        {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                      </button>
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-                          {w.nama_anggaran}
-                          <Badge variant="default" className="text-[10px] py-0 px-2">
-                            {w.items_count} item
-                          </Badge>
-                          {isOverBudget && (
-                            <Badge variant="danger" className="text-[10px] py-0 px-2">
-                              Over Budget
-                            </Badge>
-                          )}
-                        </h3>
-                        {w.catatan && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            {w.catatan}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Financial Summary per Wadah */}
-                    <div className="flex items-center gap-4 ml-auto flex-wrap">
-                      <div className="text-right">
-                        <span className="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block">
-                          Rencana Anggaran
-                        </span>
-                        <span className="text-sm sm:text-base font-extrabold text-emerald-700 dark:text-emerald-300">
-                          {formatRupiah(w.total_rencana)}
-                        </span>
-                      </div>
-
-                      <div className="text-right border-l border-slate-200 dark:border-slate-700 pl-4">
-                        <span className="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block">
-                          Kas Terpakai
-                        </span>
-                        <span className="text-sm sm:text-base font-extrabold text-blue-600 dark:text-blue-400">
-                          {formatRupiah(w.total_realisasi)}
-                        </span>
-                      </div>
-
-                      <div className="text-right border-l border-slate-200 dark:border-slate-700 pl-4">
-                        <span className="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block">
-                          Sisa Saldo
-                        </span>
-                        <span
-                          className={`text-sm sm:text-base font-extrabold ${
-                            isOverBudget
-                              ? "text-rose-600 dark:text-rose-400"
-                              : "text-slate-800 dark:text-slate-200"
-                          }`}
+                        <button
+                          type="button"
+                          aria-label={isCollapsed ? "Buka Wadah" : "Tutup Wadah"}
+                          className="p-1 mt-0.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition cursor-pointer shrink-0"
                         >
-                          {formatRupiah(w.sisa_anggaran)}
-                        </span>
+                          {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                            <span>{w.nama_anggaran}</span>
+                            <Badge variant="default" className="text-[10px] py-0 px-2">
+                              {w.items_count} item
+                            </Badge>
+                            {isOverBudget && (
+                              <Badge variant="danger" className="text-[10px] py-0 px-2">
+                                Over Budget
+                              </Badge>
+                            )}
+                          </h3>
+                          {w.catatan && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                              {w.catatan}
+                            </p>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Wadah Action Buttons */}
-                      <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-3">
+                      {/* Wadah Action Buttons (Tambah Item, Edit, Hapus) */}
+                      <div className="flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
                         <Button
                           type="button"
                           variant="primary"
                           size="sm"
                           onClick={() => openAddItem(w)}
-                          className="h-8 px-2.5 text-xs inline-flex items-center gap-1"
+                          className="h-8 px-2.5 sm:px-3 text-xs inline-flex items-center gap-1.5 shadow-2xs"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Tambah Item</span>
+                          <span>Tambah Item</span>
                         </Button>
                         <TableActionGroup
                           onEdit={() => openEditWadah(w)}
@@ -602,6 +569,42 @@ export default function RabPage() {
                           editTooltip="Edit Anggaran"
                           deleteTooltip="Hapus Anggaran"
                         />
+                      </div>
+                    </div>
+
+                    {/* Baris 2: Ringkasan Finansial Rata Kiri & Responsif */}
+                    <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-700/60 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-6 text-left">
+                      <div className="text-left">
+                        <span className="text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500 block">
+                          Rencana Anggaran
+                        </span>
+                        <span className="text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                          {formatRupiah(w.total_rencana)}
+                        </span>
+                      </div>
+
+                      <div className="text-left">
+                        <span className="text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500 block">
+                          Kas Terpakai
+                        </span>
+                        <span className="text-sm sm:text-base font-extrabold text-blue-600 dark:text-blue-400 block mt-0.5">
+                          {formatRupiah(w.total_realisasi)}
+                        </span>
+                      </div>
+
+                      <div className="text-left col-span-2 sm:col-span-1">
+                        <span className="text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500 block">
+                          Sisa Saldo
+                        </span>
+                        <span
+                          className={`text-sm sm:text-base font-extrabold block mt-0.5 ${
+                            isOverBudget
+                              ? "text-rose-600 dark:text-rose-400"
+                              : "text-slate-800 dark:text-slate-200"
+                          }`}
+                        >
+                          {formatRupiah(w.sisa_anggaran)}
+                        </span>
                       </div>
                     </div>
                   </div>
