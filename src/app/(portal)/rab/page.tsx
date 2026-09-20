@@ -14,7 +14,6 @@ import {
   Layers,
   TrendingUp,
   AlertCircle,
-  RotateCcw,
 } from "lucide-react";
 import { SpeedDialActions } from "@/components/shared/SpeedDialActions";
 import { TableActionGroup } from "@/components/shared/TableActionGroup";
@@ -157,9 +156,9 @@ export default function RabPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Gagal menyimpan wadah anggaran");
+        toast.error(data.error || "Gagal menyimpan anggaran");
       } else {
-        toast.success(isEditingWadah ? "Wadah anggaran berhasil diperbarui" : "Wadah anggaran berhasil dibuat");
+        toast.success(isEditingWadah ? "Anggaran berhasil diperbarui" : "Anggaran berhasil dibuat");
         setWadahModalOpen(false);
         fetchData();
       }
@@ -172,9 +171,9 @@ export default function RabPage() {
 
   const handleDeleteWadah = async (w: RabWadah) => {
     const ok = await confirm({
-      title: "Hapus Wadah Anggaran?",
-      message: `Apakah Anda yakin ingin menghapus wadah "${w.nama_anggaran}"? Seluruh rincian kebutuhan di dalamnya juga akan terhapus.`,
-      confirmText: "Hapus Wadah",
+      title: "Hapus Anggaran?",
+      message: `Apakah Anda yakin ingin menghapus anggaran "${w.nama_anggaran}"? Seluruh rincian kebutuhan di dalamnya juga akan terhapus.`,
+      confirmText: "Hapus Anggaran",
       cancelText: "Batal",
       variant: "danger",
     });
@@ -188,9 +187,9 @@ export default function RabPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Gagal menghapus wadah anggaran");
+        toast.error(data.error || "Gagal menghapus anggaran");
       } else {
-        toast.success("Wadah anggaran berhasil dihapus");
+        toast.success("Anggaran berhasil dihapus");
         fetchData();
       }
     } catch {
@@ -277,35 +276,6 @@ export default function RabPage() {
     }
   };
 
-  // Reset RAB Data
-  const handleResetRab = async () => {
-    const ok = await confirm({
-      title: "Reset Seluruh Data RAB?",
-      message: "Tindakan ini akan mengosongkan seluruh wadah anggaran dan rincian kebutuhan RAB. Pengeluaran kas tidak akan terhapus namun relasi wadahnya akan dilepas.",
-      confirmText: "Reset Bersih",
-      cancelText: "Batal",
-      variant: "danger",
-    });
-    if (!ok) return;
-
-    try {
-      const res = await fetch("/api/rab", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reset_rab" }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Gagal mereset data RAB");
-      } else {
-        toast.success("Data RAB berhasil direset bersih");
-        fetchData();
-      }
-    } catch {
-      toast.error("Terjadi kesalahan sistem saat reset");
-    }
-  };
-
   // Export to Excel
   const handleExportExcel = () => {
     if (wadahList.length === 0) {
@@ -373,7 +343,7 @@ export default function RabPage() {
       ]);
 
       const worksheetData = [
-        ["No", "Wadah Anggaran", "Uraian Kebutuhan", "Volume", "Satuan", "Harga Satuan (Rp)", "Total Biaya (Rp)", "Catatan"],
+        ["No", "Anggaran", "Uraian Kebutuhan", "Volume", "Satuan", "Harga Satuan (Rp)", "Total Biaya (Rp)", "Catatan"],
         ...rows,
       ];
 
@@ -393,62 +363,6 @@ export default function RabPage() {
     <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 transition-colors w-full min-w-0">
       {/* Konten Interaktif Layar */}
       <div className="no-print">
-        {/* Header Halaman */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
-              <Calculator className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600 dark:text-emerald-400" />
-              Rencana Anggaran Biaya (RAB)
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Perencanaan pos anggaran dinamis dan pemantauan realisasi pengeluaran kas maulid.
-            </p>
-          </div>
-
-          {/* Tombol Aksi Desktop */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => window.print()}
-              className="hidden sm:inline-flex items-center gap-2"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Cetak</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleExportExcel}
-              className="hidden sm:inline-flex items-center gap-2"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Excel</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleResetRab}
-              className="hidden sm:inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-800"
-              title="Reset data RAB di VPS/Database"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Data</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="primary"
-              onClick={openAddWadah}
-              className="inline-flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Buat Wadah Anggaran</span>
-            </Button>
-          </div>
-        </div>
 
         {/* 4 Main Stat Cards (Budget vs Actual Monitoring) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
@@ -551,7 +465,7 @@ export default function RabPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari wadah anggaran atau rincian kebutuhan..."
+              placeholder="Cari anggaran atau rincian kebutuhan..."
               className="w-full text-xs border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 min-h-[44px] bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
@@ -582,9 +496,9 @@ export default function RabPage() {
         {/* Empty State */}
         {!loading && !error && wadahList.length === 0 && (
           <EmptyState
-            title="Belum Ada Wadah Anggaran"
-            description="Mulai rancang RAB dengan membuat Judul Wadah Anggaran baru terlebih dahulu (misal: Anggaran Konsumsi, Anggaran Tenda & Panggung)."
-            actionLabel="Buat Wadah Anggaran Pertama"
+            title="Belum Ada Anggaran"
+            description="Mulai rancang RAB dengan membuat Judul Anggaran baru terlebih dahulu (misal: Anggaran Konsumsi, Anggaran Tenda & Panggung)."
+            actionLabel="Buat Anggaran Pertama"
             onAction={openAddWadah}
           />
         )}
@@ -685,8 +599,8 @@ export default function RabPage() {
                         <TableActionGroup
                           onEdit={() => openEditWadah(w)}
                           onDelete={() => handleDeleteWadah(w)}
-                          editTooltip="Edit Wadah Anggaran"
-                          deleteTooltip="Hapus Wadah Anggaran"
+                          editTooltip="Edit Anggaran"
+                          deleteTooltip="Hapus Anggaran"
                         />
                       </div>
                     </div>
@@ -827,7 +741,7 @@ export default function RabPage() {
         ]}
       />
 
-      {/* Modal 1: Buat / Edit Wadah Anggaran */}
+      {/* Modal 1: Buat / Edit Anggaran */}
       <RabWadahModal
         isOpen={wadahModalOpen}
         onClose={() => setWadahModalOpen(false)}
