@@ -175,7 +175,7 @@ export default function KeuanganPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.tipe === "keluar" && rabList.length > 0 && !form.rab_id) {
-      toast.error("Silakan pilih Wadah Anggaran (RAB) untuk pengeluaran ini");
+      toast.error("Silakan pilih Anggaran (RAB) untuk pengeluaran ini");
       return;
     }
 

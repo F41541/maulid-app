@@ -45,7 +45,7 @@ export function RabPrintView({ wadah, ringkasan }: RabPrintViewProps) {
         </div>
       </div>
 
-      {/* Rincian per Wadah Anggaran */}
+      {/* Rincian per Anggaran */}
       <div className="space-y-4">
         {wadah.map((w, wIdx) => {
           const items = w.items || [];

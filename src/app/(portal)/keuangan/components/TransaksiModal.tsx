@@ -79,7 +79,7 @@ export function TransaksiModal({
 
           {form.tipe === "keluar" && (
             <div className="mt-3">
-              <FormField label="Wadah Anggaran (RAB)" required>
+              <FormField label="Anggaran (RAB)" required>
                 <Select
                   value={form.rab_id || ""}
                   onChange={(e) => setForm({ ...form, rab_id: e.target.value })}
@@ -94,7 +94,7 @@ export function TransaksiModal({
               </FormField>
               {rabList.length === 0 && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 italic">
-                  Belum ada Wadah RAB. Anda dapat membuat Judul Wadah terlebih dahulu di menu RAB.
+                  Belum ada RAB. Anda dapat membuat Judul terlebih dahulu di menu RAB.
                 </p>
               )}
             </div>

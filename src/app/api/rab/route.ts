@@ -132,12 +132,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action } = body;
 
-    // 1. Create Wadah Anggaran
+    // 1. Create Anggaran
     if (action === "create_wadah") {
       const { nama_anggaran, catatan } = body;
       if (!nama_anggaran || !nama_anggaran.trim()) {
         return NextResponse.json(
-          { error: "Judul wadah anggaran wajib diisi" },
+          { error: "Judul anggaran wajib diisi" },
           { status: 400 }
         );
       }
@@ -151,12 +151,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, id });
     }
 
-    // 2. Update Wadah Anggaran
+    // 2. Update Anggaran
     if (action === "update_wadah") {
       const { id, nama_anggaran, catatan } = body;
       if (!id || !nama_anggaran || !nama_anggaran.trim()) {
         return NextResponse.json(
-          { error: "ID dan judul wadah anggaran wajib diisi" },
+          { error: "ID dan judul anggaran wajib diisi" },
           { status: 400 }
         );
       }
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
 
       if (res.affectedRows === 0) {
         return NextResponse.json(
-          { error: "Wadah anggaran tidak ditemukan" },
+          { error: "Anggaran tidak ditemukan" },
           { status: 404 }
         );
       }
@@ -176,12 +176,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // 3. Delete Wadah Anggaran with Protection
+    // 3. Delete Anggaran with Protection
     if (action === "delete_wadah") {
       const { id } = body;
       if (!id) {
         return NextResponse.json(
-          { error: "ID wadah anggaran wajib disertakan" },
+          { error: "ID anggaran wajib disertakan" },
           { status: 400 }
         );
       }
@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
       if (count > 0) {
         return NextResponse.json(
           {
-            error: `Wadah anggaran tidak dapat dihapus karena sudah memiliki ${count} catatan transaksi pengeluaran kas. Ubah atau batalkan transaksi kas tersebut terlebih dahulu.`,
+            error: `Anggaran tidak dapat dihapus karena sudah memiliki ${count} catatan transaksi pengeluaran kas. Ubah atau batalkan transaksi kas tersebut terlebih dahulu.`,
           },
           { status: 400 }
         );
@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
       const res = await execute("DELETE FROM rab WHERE id = ?", [id]);
       if (res.affectedRows === 0) {
         return NextResponse.json(
-          { error: "Wadah anggaran tidak ditemukan" },
+          { error: "Anggaran tidak ditemukan" },
           { status: 404 }
         );
       }
@@ -219,7 +219,7 @@ export async function POST(req: NextRequest) {
 
       if (!rab_id) {
         return NextResponse.json(
-          { error: "Wadah anggaran (rab_id) wajib ditentukan" },
+          { error: "Anggaran (rab_id) wajib ditentukan" },
           { status: 400 }
         );
       }

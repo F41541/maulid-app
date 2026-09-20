@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { formatRupiah } from "@/lib/format";
 
 // -------------------------------------------------------------
-// 1. Modal Wadah Anggaran (Master)
+// 1. Modal Anggaran (Master)
 // -------------------------------------------------------------
 export interface RabWadahFormData {
   id?: string;
@@ -40,14 +40,14 @@ export function RabWadahModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditing ? "Edit Wadah Anggaran" : "Buat Wadah Anggaran Baru"}
-      description="Wadah anggaran berfungsi sebagai pos/judul utama untuk mengelompokkan rincian kebutuhan biaya acara."
+      title={isEditing ? "Edit Anggaran" : "Buat Anggaran Baru"}
+      description="Anggaran berfungsi sebagai pos/judul utama untuk mengelompokkan rincian kebutuhan biaya acara."
       maxWidth="md"
     >
       <form onSubmit={onSubmit} className="space-y-4">
-        <ModalSection title="Informasi Wadah Anggaran" bordered={false}>
+        <ModalSection title="Informasi Anggaran" bordered={false}>
           <div className="space-y-3">
-            <FormField label="Judul / Nama Wadah Anggaran" required>
+            <FormField label="Judul / Nama Anggaran" required>
               <Input
                 type="text"
                 required
