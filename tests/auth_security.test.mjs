@@ -143,3 +143,29 @@ test("6. Proxy route guards enforce strict authentication and roles", () => {
   assert.equal(resBendaharaPengguna.status, 307);
   assert.ok(resBendaharaPengguna.headers.get("location")?.includes("/dashboard"));
 });
+
+test("7. Session duration is 1 day and failed login threshold is 5 attempts", () => {
+  const rootDir = process.cwd();
+
+  // Verify token expiry is 1 day (within 5 seconds tolerance of 24h)
+  const before = Date.now() + 24 * 60 * 60 * 1000;
+  const token = createSessionToken({
+    id: "admin-1",
+    username: "user@test.com",
+    nama: "Ketua",
+    role: ROLES.KETUA_PANITIA,
+  });
+  const session = verifySessionToken(token);
+  assert.ok(session);
+  assert.ok(session.expiresAt >= before - 1000 && session.expiresAt <= before + 5000, "Token expiresAt must be ~24 hours from creation");
+
+  // Verify cookie maxAge in auth.ts is 1 day
+  const authPath = path.join(rootDir, "src", "lib", "auth.ts");
+  const authContent = fs.readFileSync(authPath, "utf-8");
+  assert.match(authContent, /maxAge:\s*60\s*\*\s*60\s*\*\s*24(?!\s*\*)/, "Cookie maxAge must be 1 day (86400 seconds)");
+
+  // Verify failed login lock threshold in route.ts is 5
+  const authRoutePath = path.join(rootDir, "src", "app", "api", "auth", "route.ts");
+  const routeContent = fs.readFileSync(authRoutePath, "utf-8");
+  assert.match(routeContent, /count\s*>=\s*5/, "Failed login attempts threshold must be 5");
+});

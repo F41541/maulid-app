@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
       if (!user || user.status === "nonaktif" || !verifyPassword(password, user.password)) {
         const count = (attempt?.count || 0) + 1;
-        const lockUntil = count >= 10 ? now + 5 * 60 * 1000 : 0;
+        const lockUntil = count >= 5 ? now + 5 * 60 * 1000 : 0;
         await recordFailedLogin(rateLimitKey, count, lockUntil);
 
         return NextResponse.json({ error: "Username atau password salah" }, { status: 401 });

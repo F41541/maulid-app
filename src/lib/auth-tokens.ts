@@ -70,7 +70,7 @@ export function createSessionToken(user: SessionUser): string {
   if (user.username && user.username.includes(":")) {
     throw new Error("Username cannot contain ':' delimiter");
   }
-  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+  const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 1 day
   const seksiId = user.seksi_id || "";
   const role = user.role || "ketua_panitia";
   const data = `${user.id}:${user.username}:${role}:${seksiId}:${expiresAt}`;
